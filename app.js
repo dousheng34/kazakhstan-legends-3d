@@ -8,8 +8,13 @@ const AGENT_ID = 'agent_3001m55e8rm3fmh9bs1cje0r0929';      // ElevenLabs voice 
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) || (matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820);
 const probe = document.createElement('canvas').getContext('webgl2');
 const maxTex = probe ? probe.getParameter(probe.MAX_TEXTURE_SIZE) : 4096;
-const LOW = isMobile || maxTex < 8192 || (navigator.hardwareConcurrency || 8) <= 4;
-const DPR_MAX = Math.min(window.devicePixelRatio || 1, LOW ? 1.5 : 2);
+let GPU = '';
+try { const ext = probe && probe.getExtension('WEBGL_debug_renderer_info'); GPU = probe ? String(probe.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : probe.RENDERER)) : ''; } catch (e) {}
+const WEAK_GPU = /Intel|UHD|Iris|HD Graphics|Mali|Adreno|PowerVR|SwiftShader|llvmpipe|Microsoft Basic/i.test(GPU);
+let savedQ = null; try { savedQ = localStorage.getItem('kz_quality'); } catch (e) {}
+const QUALITY = savedQ || ((isMobile || WEAK_GPU || maxTex < 8192 || (navigator.hardwareConcurrency || 8) <= 4) ? 'medium' : 'high');
+const LOW = QUALITY !== 'high';
+const DPR_MAX = Math.min(window.devicePixelRatio || 1, LOW ? 1 : 1.5);
 
 const R = 420;                         // globe radius (scene units)
 const EXAG = 15;                       // vertical exaggeration of Kazakhstan relief
@@ -109,14 +114,14 @@ function heightAtPx(px, py) {
    Earth globe + regional detail + atmosphere
    ========================================================= */
 async function buildGlobe() {
-  const earth = await loadTex('earth.jpg');
-  const g = new THREE.Mesh(new THREE.SphereGeometry(R, LOW ? 160 : 256, LOW ? 80 : 128),
+  const earth = await loadTex(LOW ? 'earth_m.jpg' : 'earth.jpg');
+  const g = new THREE.Mesh(new THREE.SphereGeometry(R, LOW ? 96 : 160, LOW ? 48 : 80),
     new THREE.MeshStandardMaterial({ map: earth, roughness: 0.92, metalness: 0 }));
   globe.add(g);
 
   // high-res regional patch (Central Asia) with soft edges
-  const reg = META.region, tex = await loadTex('region.jpg');
-  const cols = 140, rows = 80;
+  const reg = META.region, tex = await loadTex(LOW ? 'region_m.jpg' : 'region.jpg');
+  const cols = LOW ? 80 : 120, rows = LOW ? 46 : 70;
   const pos = [], uv = [], col = [], idx = [];
   for (let j = 0; j <= rows; j++) {
     const lat = reg.lat1 - (j / rows) * (reg.lat1 - reg.lat0);
@@ -140,7 +145,7 @@ async function buildGlobe() {
 
   // atmosphere rim
   const ra = R * 1.06, tl = 1 - Math.sqrt(1 - (R / ra) ** 2);
-  const atm = new THREE.Mesh(new THREE.SphereGeometry(ra, 96, 48), new THREE.ShaderMaterial({
+  const atm = new THREE.Mesh(new THREE.SphereGeometry(ra, 64, 32), new THREE.ShaderMaterial({
     transparent: true, side: THREE.BackSide, depthWrite: false,
     uniforms: { c: { value: new THREE.Color(0x6ec3ff) }, tl: { value: tl } },
     vertexShader: 'varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vP = mv.xyz; gl_Position = projectionMatrix * mv; }',
@@ -174,7 +179,7 @@ async function buildKazakhstan() {
   META = meta;
   Q = new Uint16Array(Uint8Array.from(atob(hj.b64), (c) => c.charCodeAt(0)).buffer);
   const { w: W, h: H, gw, gh, step } = meta;
-  const sub = LOW ? 2 : 1;
+  const sub = LOW ? 3 : 2;               // 6–9 km grid: smooth enough with baked relief, 4–9× fewer triangles
   // cached trig per grid column / row (Mercator is separable)
   const cphi = new Float32Array(gw), sphi = new Float32Array(gw), cth = new Float32Array(gh), sth = new Float32Array(gh);
   for (let i = 0; i < gw; i++) { const phi = (pxLon(i * step) + 180) * DEG; cphi[i] = Math.cos(phi); sphi[i] = Math.sin(phi); }
@@ -282,7 +287,9 @@ function coverTexture(p, img) {
   g.fillStyle = '#cfe9f0'; g.font = '400 28px "PT Sans", system-ui, sans-serif';
   g.fillText(p.years, W / 2, y + 6);
   g.restore();
-  return canvasTex(c);
+  const sm = document.createElement('canvas'); sm.width = 320; sm.height = Math.round(320 * H / W);
+  sm.getContext('2d').drawImage(c, 0, 0, sm.width, sm.height);
+  return canvasTex(sm);
 }
 function softRectTexture(color, blur) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 320;
@@ -355,7 +362,7 @@ async function buildBooks() {
     pin.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(tb.e, tb.no, tb.n));
     pin.add(new THREE.Mesh(pinGeo, pinMat));
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfec50c, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }));
-    ring.position.z = 0.01; pin.add(ring);
+    ring.position.z = 0.01; ring.material.opacity = 0.55; pin.add(ring);
     globe.add(pin);
     if (Math.hypot(it.x - p.px, it.y - p.py) > 6) {
       const lg = new THREE.BufferGeometry().setFromPoints([pin.position.clone(), base.position.clone().add(n.clone().multiplyScalar(0.05))]);
@@ -425,7 +432,7 @@ function setMode(m) {
   }
 }
 function updateMode() {
-  if (flight) return;
+  if (flight) return false;
   if (mode === 'map') {
     if (camera.position.distanceTo(controls.target) > 560) {
       setMode('globe');
@@ -437,8 +444,9 @@ function updateMode() {
     const above = off.clone().normalize().y;                 // 1 = straight above Kazakhstan
     if (off.length() < R + 300 && above > 0.86) setMode('map');
   }
-  if (mode === 'globe') controls.target.lerp(GLOBE_CENTER, 0.08);
-  else if (controls.target.distanceTo(GLOBE_CENTER) < R * 0.98) controls.target.lerp(new THREE.Vector3(0, 0, 6), 0.08);
+  if (mode === 'globe') { if (controls.target.distanceTo(GLOBE_CENTER) > 0.05) { controls.target.lerp(GLOBE_CENTER, 0.08); return true; } }
+  else if (controls.target.distanceTo(GLOBE_CENTER) < R * 0.98) { controls.target.lerp(new THREE.Vector3(0, 0, 6), 0.08); return true; }
+  return false;
 }
 
 /* =========================================================
@@ -509,6 +517,9 @@ document.querySelectorAll('#nav button').forEach((btn) => btn.addEventListener('
   }
   flyTo({ pos: tg.clone().add(off), target: tg, mode }, 420, () => setMode(mode));
 }));
+
+$('q-btn').textContent = LOW ? 'SD' : 'HD';
+$('q-btn').addEventListener('click', () => { try { localStorage.setItem('kz_quality', LOW ? 'high' : 'medium'); } catch (e) {} location.reload(); });
 
 const panel = $('panel');
 function closePanel() { panel.classList.remove('open'); }
@@ -771,41 +782,49 @@ const clock = new THREE.Clock();
 let frames = 0, acc = 0, slow = 0, fast = 0, frozen = false;
 function adapt(dt) {
   frames++; acc += dt; if (acc < 1) return;
-  const fps = frames / acc; frames = 0; acc = 0;
+  const fps = frames / acc; const n = frames; frames = 0; acc = 0;
+  if (n < 20) return;                       // idle periods (on-demand rendering) are not measured
   if (fps < 48) { slow++; fast = 0; } else if (fps > 58) { fast++; slow = 0; } else slow = fast = 0;
   if (slow >= 2 && dpr > 1) { dpr = Math.max(1, dpr - 0.25); renderer.setPixelRatio(dpr); slow = 0; }
   else if (fast >= 4 && dpr < DPR_MAX) { dpr = Math.min(DPR_MAX, dpr + 0.25); renderer.setPixelRatio(dpr); fast = 0; }
 }
+let dirty = true;
+const markDirty = () => { dirty = true; };
+controls.addEventListener('change', markDirty);
 function animate() {
-  const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime;
+  const dt = Math.min(clock.getDelta(), 0.1);
   if (bookOpen && !flight) { if (!frozen) { renderer.render(scene, camera); frozen = true; } return; }
-  frozen = false;
+  if (frozen) { frozen = false; dirty = true; }
+  let active = false;
   if (flight) {
     const k = Math.min(1, (performance.now() - flight.start) / flight.dur), e = ease(k);
     camera.position.lerpVectors(flight.p0, flight.p1, e);
     controls.target.lerpVectors(flight.t0, flight.t1, e);
+    active = true;
     if (k >= 1) { const d = flight.done; flight = null; d && d(); }
   }
-  updateMode();
+  if (updateMode()) active = true;
   controls.update();
   if (mode === 'map' && !flight) {
     const tg = controls.target, ox = tg.x, oz = tg.z;
-    tg.x = Math.max(-135, Math.min(135, tg.x)); tg.z = Math.max(-85, Math.min(95, tg.z)); tg.y += (0 - tg.y) * 0.1;
+    tg.x = Math.max(-135, Math.min(135, tg.x)); tg.z = Math.max(-85, Math.min(95, tg.z));
+    if (Math.abs(tg.y) > 0.01) { tg.y += (0 - tg.y) * 0.1; active = true; }
     camera.position.x += tg.x - ox; camera.position.z += tg.z - oz;
   }
   for (const b of books) {
-    b.hover += ((b === hovered ? 1 : 0) - b.hover) * 0.18;
-    b.lift.position.z = b.hover * 0.9;
-    b.lift.scale.setScalar(1 + b.hover * 0.07);
-    b.glow.material.opacity = b.hover * 0.9;
-    const pulse = (t * 0.55 + b.phase) % 1;
-    b.ring.scale.setScalar(1 + pulse * 1.6); b.ring.material.opacity = 0.75 * (1 - pulse);
+    const goal = b === hovered ? 1 : 0;
+    if (Math.abs(goal - b.hover) > 0.002) {
+      b.hover += (goal - b.hover) * 0.2; active = true;
+      b.lift.position.z = b.hover * 0.9; b.lift.scale.setScalar(1 + b.hover * 0.07); b.glow.material.opacity = b.hover * 0.9;
+    }
   }
+  if (!dirty && !active) return;            // nothing changed → no GPU work at all
+  dirty = false;
   updateLabels();
   renderer.render(scene, camera);
   adapt(dt);
 }
-window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); dirty = true; });
 
 /* =========================================================
    Boot
