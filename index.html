@@ -18,7 +18,6 @@
   <link href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="styles.css">
-  <script src="elevenlabs-client.js"></script>
   <script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
 </head>
 <body>
@@ -79,9 +78,23 @@
     <button id="book-close" aria-label="Жабу">✕</button>
     <div id="book">
       <div class="page-stack"></div>
+      <section class="page left" id="page-left">
+        <div class="orn tl"></div><div class="orn br"></div>
+        <div class="holo" id="portrait-wrap">
+          <canvas id="avatar" width="480" height="640"></canvas>
+          <img id="left-img" alt="" hidden>
+          <div class="holo-scan"></div>
+          <div class="ring r1"></div><div class="ring r2"></div>
+          <div class="holo-beam"></div>
+        </div>
+        <h2 id="left-name" class="stg"></h2>
+        <div class="meta stg"><span id="left-years"></span><span class="sep">◆</span><span id="left-region"></span></div>
+        <p id="left-bio" class="stg"></p>
+        <div class="credit-small stg">Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs</div>
+      </section>
       <section class="page right" id="page-right">
         <div class="orn tl"></div><div class="orn br"></div>
-        <div class="talk-head">
+        <div class="talk-head stg">
           <div>
             <div class="talk-kicker">Тікелей сұхбат</div>
             <div class="talk-name" id="talk-name"></div>
@@ -90,13 +103,13 @@
             <button data-lang="kk" class="on">ҚАЗ</button><button data-lang="ru">РУС</button>
           </div>
         </div>
-        <div id="chat-log"></div>
-        <div id="status-bar">
+        <div id="chat-log" class="stg"></div>
+        <div id="status-bar" class="stg">
           <div id="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
           <span id="status"></span>
           <button id="newtab-btn" hidden>Микрофон үшін сайтта ашу ↗</button>
         </div>
-        <div class="talk-controls">
+        <div class="talk-controls stg">
           <button id="live-btn" class="live">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
             <span id="live-label">Дауыспен сөйлесу</span>
@@ -106,28 +119,15 @@
             <button type="submit" aria-label="Жіберу"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg></button>
           </form>
         </div>
+        <div class="flip-shade"></div>
       </section>
+      <div class="leaf l1"></div><div class="leaf l2"></div>
       <div class="cover" id="cover">
-        <div class="face front">
-          <div class="cover-border"></div>
-          <div class="cover-frame"><img id="cover-img" alt=""></div>
-          <div class="cover-name" id="cover-name"></div>
-          <div class="cover-years" id="cover-years"></div>
-        </div>
-        <div class="face back" id="page-left">
-          <div class="orn tl"></div><div class="orn br"></div>
-          <div class="holo" id="portrait-wrap">
-            <canvas id="avatar" width="480" height="640"></canvas>
-            <img id="left-img" alt="" hidden>
-            <div class="holo-scan"></div>
-            <div class="ring r1"></div><div class="ring r2"></div>
-            <div class="holo-beam"></div>
-          </div>
-          <h2 id="left-name"></h2>
-          <div class="meta"><span id="left-years"></span><span class="sep">◆</span><span id="left-region"></span></div>
-          <p id="left-bio"></p>
-          <div class="credit-small">Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs</div>
-        </div>
+        <div class="cover-border"></div>
+        <div class="cover-frame"><img id="cover-img" alt=""></div>
+        <div class="cover-name" id="cover-name"></div>
+        <div class="cover-years" id="cover-years"></div>
+        <div class="cover-shine"></div>
       </div>
     </div>
   </div>
