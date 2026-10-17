@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Қазақстан тұлғалары — 3D жер шары</title>
+  <script
+    src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.0/dist/index.global.js"
+    integrity="sha384-nWTzRTCY/9V4Bo352ehygr1c4cnst4XN6lMR3fipakEQrhVpc0hEM5Dii3Amz0sT"
+    crossorigin="anonymous"
+  ></script>
+  <style type="text/tailwindcss">
+    @custom-variant dark (&:where(.dark, .dark *));
+  </style>
+  <script id="gumloop-appearance">(function(){var r=document.documentElement;if(r.classList.contains('dark')||r.classList.contains('light'))return;var m=window.matchMedia('(prefers-color-scheme: dark)');function s(){if(r.dataset.appearance)return;r.classList.toggle('dark',m.matches);}s();m.addEventListener('change',s);})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="elevenlabs-client.js"></script>
+  <script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
+</head>
+<body>
+  <div id="sky"></div>
+  <div id="stage"></div>
+  <div id="labels"></div>
+
+  <header id="topbar" class="ui">
+    <div id="brand">
+      <svg class="brand-orn" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="13" fill="#FEC50C"/><g stroke="#FEC50C" stroke-width="3" stroke-linecap="round"><path d="M32 6v7M32 51v7M6 32h7M51 32h7M13.6 13.6l5 5M45.4 45.4l5 5M13.6 50.4l5-5M45.4 18.6l5-5"/></g></svg>
+      <div>
+        <div class="brand-kicker">Қазақстан</div>
+        <div class="brand-title">Ұлы тұлғалар әлемі</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <label class="search-wrap">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="search" type="search" placeholder="Тұлға, қала, облыс…" autocomplete="off">
+      </label>
+      <button id="list-toggle" class="chip" aria-label="Тұлғалар тізімі">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span>Тұлғалар</span><b id="count">23</b>
+      </button>
+      <button id="globe-btn" class="chip icon" title="Жер шары" aria-label="Жер шары">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg>
+      </button>
+      <button id="home-btn" class="chip icon" title="Қазақстан" aria-label="Қазақстан картасы">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+      </button>
+      <button id="fs-btn" class="chip icon" title="Толық экран" aria-label="Толық экран">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <aside id="panel" class="ui" aria-hidden="true">
+    <div class="panel-title">Тұлғалар <span>өңір бойынша</span></div>
+    <div id="list"></div>
+  </aside>
+
+  <div id="nav" class="ui" aria-label="Басқару">
+    <button data-nav="in" title="Жақындату">+</button>
+    <button data-nav="out" title="Алыстату">−</button>
+    <span class="sep"></span>
+    <button data-nav="left" title="Солға бұру">⟲</button>
+    <button data-nav="right" title="Оңға бұру">⟳</button>
+    <button data-nav="tilt" title="Еңкейту">◩</button>
+    <button data-nav="north" title="Солтүстікке бұру"><b>С</b></button>
+  </div>
+
+  <div id="hint" class="ui"><span><i>✋</i> Тартып жылжыту</span><span><i>⊕</i> Дөңгелекпен немесе +/− жақындату</span><span><i>☝</i> Кітапты басыңыз</span></div>
+  <div id="hover-tip"></div>
+
+  <!-- Book -->
+  <div id="book-overlay" aria-hidden="true">
+    <button id="book-close" aria-label="Жабу">✕</button>
+    <div id="book">
+      <div class="page-stack"></div>
+      <section class="page right" id="page-right">
+        <div class="orn tl"></div><div class="orn br"></div>
+        <div class="talk-head">
+          <div>
+            <div class="talk-kicker">Тікелей сұхбат</div>
+            <div class="talk-name" id="talk-name"></div>
+          </div>
+          <div class="lang" role="group" aria-label="Тіл">
+            <button data-lang="kk" class="on">ҚАЗ</button><button data-lang="ru">РУС</button>
+          </div>
+        </div>
+        <div id="chat-log"></div>
+        <div id="status-bar">
+          <div id="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <span id="status"></span>
+          <button id="newtab-btn" hidden>Микрофон үшін сайтта ашу ↗</button>
+        </div>
+        <div class="talk-controls">
+          <button id="live-btn" class="live">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+            <span id="live-label">Дауыспен сөйлесу</span>
+          </button>
+          <form id="text-form">
+            <input id="text-input" type="text" placeholder="Немесе жазып сұраңыз…" autocomplete="off">
+            <button type="submit" aria-label="Жіберу"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg></button>
+          </form>
+        </div>
+      </section>
+      <div class="cover" id="cover">
+        <div class="face front">
+          <div class="cover-border"></div>
+          <div class="cover-frame"><img id="cover-img" alt=""></div>
+          <div class="cover-name" id="cover-name"></div>
+          <div class="cover-years" id="cover-years"></div>
+        </div>
+        <div class="face back" id="page-left">
+          <div class="orn tl"></div><div class="orn br"></div>
+          <div class="holo" id="portrait-wrap">
+            <canvas id="avatar" width="480" height="640"></canvas>
+            <img id="left-img" alt="" hidden>
+            <div class="holo-scan"></div>
+            <div class="ring r1"></div><div class="ring r2"></div>
+            <div class="holo-beam"></div>
+          </div>
+          <h2 id="left-name"></h2>
+          <div class="meta"><span id="left-years"></span><span class="sep">◆</span><span id="left-region"></span></div>
+          <p id="left-bio"></p>
+          <div class="credit-small">Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Splash -->
+  <div id="splash">
+    <div class="splash-inner">
+      <svg class="splash-orn" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="13" fill="#FEC50C"/><g stroke="#FEC50C" stroke-width="3" stroke-linecap="round"><path d="M32 6v7M32 51v7M6 32h7M51 32h7M13.6 13.6l5 5M45.4 45.4l5 5M13.6 50.4l5-5M45.4 18.6l5-5"/></g></svg>
+      <div class="splash-kicker">Қазақстан</div>
+      <h1>Ұлы тұлғалар әлемі</h1>
+      <p>Жер шарынан Қазақстанға ұшып барып, ұлы тұлғалармен тірідей сөйлесіңіз.</p>
+      <div class="progress"><div id="progress-bar"></div></div>
+      <div id="progress-text">Жүктелуде… 0%</div>
+      <button id="enter-btn" disabled>Бастау</button>
+    </div>
+  </div>
+
+  <div id="credit">Спутник © Esri · Бедер: AWS Terrain Tiles · Шекара: geoBoundaries/OSM · Суреттер: Wikimedia Commons · Дауыс: ElevenLabs</div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

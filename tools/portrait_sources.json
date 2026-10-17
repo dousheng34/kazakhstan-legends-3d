@@ -1,0 +1,85 @@
+{
+ "abai": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/2/23/Abai_Kunanbaev.jpg"
+ },
+ "shakarim": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/a/a7/Shakarim_Qudayberdiuly%2C_reworked%2C_circa_1905.jpg"
+ },
+ "auezov": {
+  "commons_file": "File:Ауэзов Мухтар Омарханович (конверт).jpg"
+ },
+ "farabi": {
+  "commons_file": "File:Al-Farabi , Sayr mulhimah min al-Sharq wa-al-Gharb.png"
+ },
+ "yasawi": {
+  "commons_file": "File:Mausoleum of Khoja Ahmed Yasavi in Turkestan, Kazakhstan.jpg"
+ },
+ "abylai": {
+  "commons_file": "File:2000 Stamp of Kazakhstan - Abylai Khan.jpg"
+ },
+ "tole": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Stamp_of_Kazakhstan_442.jpg"
+ },
+ "altynsarin": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/6/67/Altynsarin.jpg"
+ },
+ "baitursynov": {
+  "commons_file": "File:Ахмет Байтұрсынұлы (1913-02-02).jpg"
+ },
+ "bokeikhan": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/e/e7/Bukeykhanov.jpg"
+ },
+ "magzhan": {
+  "wikipedia": "kk",
+  "title": "Мағжан Жұмабаев"
+ },
+ "satpayev": {
+  "commons_file": "File:Kanysh Satpayev from Kazakhstanskaya Pravda 19 May 1949.jpg"
+ },
+ "zhambyl": {
+  "wikipedia": "kk",
+  "title": "Жамбыл Жабаев"
+ },
+ "momyshuly": {
+  "commons_file": "File:Egemen Archive Momyshuly Margulan (Bauyrjan cropped).jpg"
+ },
+ "makhambet": {
+  "url": "https://upload.wikimedia.org/wikipedia/ru/f/f6/Utemisov_Mahambet.jpg"
+ },
+ "korkyt": {
+  "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a6/Gorkut_Ata_Statue_at_Independence_Monument_%2827506806397%29.jpg/1920px-Gorkut_Ata_Statue_at_Independence_Monument_%2827506806397%29.jpg"
+ },
+ "beket": {
+  "url": "https://upload.wikimedia.org/wikipedia/kk/d/d2/%D0%91%D0%B5%D0%BA%D0%B5%D1%82_%D0%B0%D1%82%D0%B0.jpg"
+ },
+ "aliya": {
+  "commons_file": "File:Sniper Aliya Nurmuhametqyzy Moldagulova.jpg"
+ },
+ "zhansugurov": {
+  "commons_file": "File:Jansuhurov.png"
+ },
+ "kurmangazy": {
+  "commons_file": "File:Kurmangazy Sagyrbayuly 2018 stamp of Kazakhstan.jpg"
+ },
+ "makataev": {
+  "commons_file": "File:KZMakataev.jpg"
+ },
+ "valikhanov": {
+  "commons_file": "File:Russian scientist and traveller Shokan Valikhanov during his visit in Saint-Petersburg in 1860.jpg"
+ },
+ "abulkhair": {
+  "url": "https://upload.wikimedia.org/wikipedia/commons/e/e2/Abulkhair_Khan.jpg"
+ },
+ "_crop_overrides": {
+  "face_factor": {
+   "auezov": 1.9,
+   "tole": 2.0,
+   "kurmangazy": 2.1,
+   "makataev": 2.0,
+   "abylai": 2.3,
+   "magzhan": 2.2,
+   "default": 2.6
+  },
+  "notes": "Auto face crop (OpenCV haarcascade_frontalface_default), 3:4, 900x1200 JPEG q88 + UnsharpMask. makataev: left 60% of stamp; auezov: trim bottom 14%."
+ }
+}

@@ -1,0 +1,129 @@
+{
+ "agent_id": "agent_3001m55e8rm3fmh9bs1cje0r0929",
+ "name": "Kazakh Legends Map",
+ "language": "kk",
+ "llm": "gpt-6-luna",
+ "max_tokens": 350,
+ "temperature": 0.7,
+ "tts": {
+  "model_id": "eleven_v4_turbo",
+  "default_voice_id": "RojlvMxYbtU94goTCgIP",
+  "speed": 0.95,
+  "stability": 0.5,
+  "similarity_boost": 0.8
+ },
+ "client_overrides_enabled": [
+  "agent.prompt.prompt",
+  "agent.first_message",
+  "agent.language",
+  "tts.voice_id",
+  "tts.speed",
+  "tts.stability",
+  "conversation.text_only"
+ ],
+ "voices": {
+  "bolat": "RojlvMxYbtU94goTCgIP",
+  "bekzat": "9NqTZSpHJZHucyduMacF",
+  "serik": "nXhev13NFTenmq7t5WZH",
+  "nurlan": "dQO3cohklRk58SrkwMjq",
+  "yerlan": "zOpa1hybmCey0nqbmcMW",
+  "aidos": "Vp3gaOLjssOTvqcooFwg",
+  "aizhan": "L9IT3CnBaFSG99pi86dr",
+  "aigerim": "QpQ3ApUOdmaUcNblVLGC"
+ },
+ "person_voice": {
+  "abai": {
+   "voice_id": "RojlvMxYbtU94goTCgIP",
+   "speed": 0.92
+  },
+  "shakarim": {
+   "voice_id": "dQO3cohklRk58SrkwMjq",
+   "speed": 0.93
+  },
+  "auezov": {
+   "voice_id": "nXhev13NFTenmq7t5WZH",
+   "speed": 0.97
+  },
+  "farabi": {
+   "voice_id": "dQO3cohklRk58SrkwMjq",
+   "speed": 0.9
+  },
+  "yasawi": {
+   "voice_id": "RojlvMxYbtU94goTCgIP",
+   "speed": 0.86
+  },
+  "abylai": {
+   "voice_id": "nXhev13NFTenmq7t5WZH",
+   "speed": 0.95
+  },
+  "tole": {
+   "voice_id": "nXhev13NFTenmq7t5WZH",
+   "speed": 0.9
+  },
+  "altynsarin": {
+   "voice_id": "dQO3cohklRk58SrkwMjq",
+   "speed": 0.97
+  },
+  "baitursynov": {
+   "voice_id": "nXhev13NFTenmq7t5WZH",
+   "speed": 0.95
+  },
+  "bokeikhan": {
+   "voice_id": "9NqTZSpHJZHucyduMacF",
+   "speed": 0.95
+  },
+  "magzhan": {
+   "voice_id": "zOpa1hybmCey0nqbmcMW",
+   "speed": 0.98
+  },
+  "satpayev": {
+   "voice_id": "9NqTZSpHJZHucyduMacF",
+   "speed": 0.98
+  },
+  "zhambyl": {
+   "voice_id": "RojlvMxYbtU94goTCgIP",
+   "speed": 0.88
+  },
+  "momyshuly": {
+   "voice_id": "nXhev13NFTenmq7t5WZH",
+   "speed": 0.98
+  },
+  "makhambet": {
+   "voice_id": "zOpa1hybmCey0nqbmcMW",
+   "speed": 1.0
+  },
+  "korkyt": {
+   "voice_id": "RojlvMxYbtU94goTCgIP",
+   "speed": 0.84
+  },
+  "beket": {
+   "voice_id": "dQO3cohklRk58SrkwMjq",
+   "speed": 0.88
+  },
+  "aliya": {
+   "voice_id": "QpQ3ApUOdmaUcNblVLGC",
+   "speed": 1.0
+  },
+  "zhansugurov": {
+   "voice_id": "zOpa1hybmCey0nqbmcMW",
+   "speed": 0.97
+  },
+  "kurmangazy": {
+   "voice_id": "9NqTZSpHJZHucyduMacF",
+   "speed": 0.95
+  },
+  "makataev": {
+   "voice_id": "Vp3gaOLjssOTvqcooFwg",
+   "speed": 0.96
+  },
+  "valikhanov": {
+   "voice_id": "Vp3gaOLjssOTvqcooFwg",
+   "speed": 1.0
+  },
+  "abulkhair": {
+   "voice_id": "9NqTZSpHJZHucyduMacF",
+   "speed": 0.92
+  }
+ },
+ "note": "Persona prompt is built in the browser (app.js -> buildPrompt) and sent as a conversation override."
+}
