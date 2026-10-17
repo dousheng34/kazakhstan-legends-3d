@@ -417,10 +417,12 @@ function globeView(scale = 3.4) {
 let flight = null;
 function flyTo(v, dur = 1400, done) {
   flight = { p0: camera.position.clone(), t0: controls.target.clone(), p1: v.pos.clone(), t1: v.target.clone(), start: performance.now(), dur, done, mode: v.mode };
+  // release OrbitControls limits while the camera is being driven, otherwise they clamp it mid-flight (stutter)
+  controls.minDistance = 0.01; controls.maxDistance = Infinity; controls.minPolarAngle = 0; controls.maxPolarAngle = Math.PI;
 }
 const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 function setMode(m) {
-  mode = m;
+  mode = m; controls.maxDistance = 3600; controls.minPolarAngle = 0;
   if (m === 'globe') {
     controls.maxPolarAngle = Math.PI; controls.minDistance = R * 1.12; if ('zoomToCursor' in controls) controls.zoomToCursor = false;
     controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
@@ -435,14 +437,14 @@ function updateMode() {
   if (flight) return false;
   if (mode === 'map') {
     if (camera.position.distanceTo(controls.target) > 560) {
-      setMode('globe');
       const d = Math.max(R * 2.2, camera.position.distanceTo(GLOBE_CENTER));
       flyTo({ pos: new THREE.Vector3(0, 0.99, 0.14).normalize().multiplyScalar(d).add(GLOBE_CENTER), target: GLOBE_CENTER.clone(), mode: 'globe' }, 900, () => setMode('globe'));
+      return false;
     }
   } else {
     const off = tmpv.subVectors(camera.position, GLOBE_CENTER);
     const above = off.clone().normalize().y;                 // 1 = straight above Kazakhstan
-    if (off.length() < R + 300 && above > 0.86) setMode('map');
+    if (off.length() < R + 300 && above > 0.86) { flyTo(mapView(), 900, () => setMode('map')); return false; }
   }
   if (mode === 'globe') { if (controls.target.distanceTo(GLOBE_CENTER) > 0.05) { controls.target.lerp(GLOBE_CENTER, 0.08); return true; } }
   else if (controls.target.distanceTo(GLOBE_CENTER) < R * 0.98) { controls.target.lerp(new THREE.Vector3(0, 0, 6), 0.08); return true; }
@@ -505,6 +507,13 @@ document.querySelectorAll('#nav button').forEach((btn) => btn.addEventListener('
   const act = btn.dataset.nav;
   if (act === 'in' || act === 'out') {
     const k = act === 'in' ? 0.55 : 1.8;
+    // crossing between globe and map → one continuous flight (no second hop, no target snap)
+    if (mode === 'globe' && act === 'in' && camera.position.distanceTo(GLOBE_CENTER) * k < R + 420) {
+      flyTo(mapView(), 1100, () => setMode('map')); return;
+    }
+    if (mode === 'map' && act === 'out' && off.length() * k > 560) {
+      flyTo(globeView(2.6), 1100, () => setMode('globe')); return;
+    }
     let d = THREE.MathUtils.clamp(off.length() * k, controls.minDistance, controls.maxDistance);
     off.setLength(d);
   } else if (act === 'left' || act === 'right') {
@@ -569,6 +578,116 @@ ${rule}${hist ? '\n\nОсыған дейінгі әңгімелерің:\n' + hi
 }
 
 let session = null, sessionKind = null, connecting = false, pendingText = null;
+
+/* ---- Minimal ElevenLabs Agents client (WebSocket protocol) ----
+   • audio replies are played for BOTH typed and spoken questions
+   • microphone is only requested in voice mode                     */
+const b64ToBytes = (b64) => { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+const bytesToB64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+let sharedCtx = null;
+function audioCtx() {
+  if (!sharedCtx) sharedCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (sharedCtx.state === 'suspended') sharedCtx.resume();
+  return sharedCtx;
+}
+class AgentSession {
+  constructor(opts) { this.o = opts; this.sources = []; this.playHead = 0; this.outRate = 16000; this.inRate = 16000; this.micLevel = 0; this.closed = false; this.mode = 'listening'; }
+  async start(withMic) {
+    const ctx = this.ctx = audioCtx();
+    this.out = ctx.createGain(); this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 1024;
+    this.out.connect(this.analyser); this.analyser.connect(ctx.destination);
+    this.buf = new Uint8Array(this.analyser.fftSize);
+    if (withMic) {
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    }
+    await new Promise((resolve, reject) => {
+      const ws = this.ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
+      let ok = false;
+      ws.onopen = () => { ws.send(JSON.stringify({ type: 'conversation_initiation_client_data', conversation_config_override: this.o.override })); };
+      ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.type === 'conversation_initiation_metadata') {
+          const md = m.conversation_initiation_metadata_event || {};
+          const of = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (of) this.outRate = +of[1];
+          const inf = /pcm_(\d+)/.exec(md.user_input_audio_format || ''); if (inf) this.inRate = +inf[1];
+          ok = true; resolve();
+        }
+        this.handle(m);
+      };
+      ws.onerror = () => { if (!ok) reject(new Error('WebSocket')); };
+      ws.onclose = (e) => { if (!ok) reject(new Error(e.reason || 'closed')); else this.finish(); };
+    });
+    if (withMic) await this.startMic();
+    this.tick();
+  }
+  async startMic() {
+    const ctx = this.ctx;
+    const src = `class Cap extends AudioWorkletProcessor { process(i){ const c = i[0] && i[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; } } registerProcessor('cap-proc', Cap);`;
+    if (!ctx.__capReady) { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'application/javascript' }))); ctx.__capReady = true; }
+    this.micSrc = ctx.createMediaStreamSource(this.stream);
+    this.node = new AudioWorkletNode(ctx, 'cap-proc');
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    this.micSrc.connect(this.node); this.node.connect(mute); mute.connect(ctx.destination);
+    const ratio = ctx.sampleRate / this.inRate; let acc = []; let pos = 0;
+    this.node.port.onmessage = (e) => {
+      const x = e.data; let sum = 0;
+      for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
+      this.micLevel = Math.sqrt(sum / x.length);
+      // downsample (box filter) to the agent's input rate
+      while (pos < x.length) { const i0 = Math.floor(pos), i1 = Math.min(x.length, Math.floor(pos + ratio)); let s = 0, n = 0; for (let i = i0; i < i1; i++) { s += x[i]; n++; } acc.push(n ? s / n : x[i0]); pos += ratio; }
+      pos -= x.length;
+      if (acc.length >= this.inRate / 8) {                        // ~125 ms chunks
+        const pcm = new Int16Array(acc.length); for (let i = 0; i < acc.length; i++) pcm[i] = Math.max(-1, Math.min(1, acc[i])) * 0x7fff;
+        acc = [];
+        if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ user_audio_chunk: bytesToB64(new Uint8Array(pcm.buffer)) }));
+      }
+    };
+  }
+  handle(m) {
+    switch (m.type) {
+      case 'audio': { const ev = m.audio_event || {}; if (ev.audio_base_64) this.play(ev.audio_base_64); break; }
+      case 'agent_response': this.o.onMessage && this.o.onMessage({ source: 'ai', message: (m.agent_response_event || {}).agent_response }); break;
+      case 'user_transcript': this.o.onMessage && this.o.onMessage({ source: 'user', message: (m.user_transcription_event || {}).user_transcript }); break;
+      case 'interruption': this.stopAudio(); break;
+      case 'ping': { const p = m.ping_event || {}; setTimeout(() => { try { this.ws.send(JSON.stringify({ type: 'pong', event_id: p.event_id })); } catch (e) {} }, p.ping_ms || 0); break; }
+      default: break;
+    }
+  }
+  play(b64) {
+    const ctx = this.ctx, u8 = b64ToBytes(b64);
+    const pcm = new Int16Array(u8.buffer, 0, u8.length >> 1);
+    if (!pcm.length) return;
+    const buf = ctx.createBuffer(1, pcm.length, this.outRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 0x8000;
+    const s = ctx.createBufferSource(); s.buffer = buf; s.connect(this.out);
+    const t = Math.max(ctx.currentTime + 0.04, this.playHead);
+    s.start(t); this.playHead = t + buf.duration;
+    this.sources.push(s); s.onended = () => { this.sources = this.sources.filter((x) => x !== s); };
+  }
+  stopAudio() { this.sources.forEach((s) => { try { s.stop(); } catch (e) {} }); this.sources = []; this.playHead = 0; }
+  tick() {
+    if (this.closed) return;
+    const speaking = this.playHead > this.ctx.currentTime + 0.02;
+    const md = speaking ? 'speaking' : 'listening';
+    if (md !== this.mode) { this.mode = md; this.o.onModeChange && this.o.onModeChange({ mode: md }); }
+    requestAnimationFrame(() => this.tick());
+  }
+  getOutputVolume() {
+    if (!this.analyser) return 0;
+    this.analyser.getByteTimeDomainData(this.buf); let s = 0;
+    for (let i = 0; i < this.buf.length; i++) { const v = (this.buf[i] - 128) / 128; s += v * v; }
+    return Math.sqrt(s / this.buf.length);
+  }
+  getInputVolume() { return this.micLevel; }
+  sendUserMessage(text) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ type: 'user_message', text })); }
+  finish() { if (this.closed) return; this.closed = true; this.o.onDisconnect && this.o.onDisconnect(); }
+  async endSession() {
+    this.closed = true; this.stopAudio();
+    try { this.node && this.node.disconnect(); this.micSrc && this.micSrc.disconnect(); } catch (e) {}
+    try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    try { this.ws && this.ws.close(); } catch (e) {}
+  }
+}
+
 async function endSession() {
   const s = session; session = null; sessionKind = null;
   if (s) { try { await s.endSession(); } catch (e) {} }
@@ -579,50 +698,47 @@ const liveLabel = () => (session && sessionKind === 'voice' ? (lang === 'ru' ? '
 
 async function startSession(kind) {
   if (!current || connecting) return;
-  const EL = window.ElevenLabsClient;
-  if (!EL || !EL.Conversation) { setStatus('ElevenLabs кітапханасы жүктелмеді.'); return; }
+  audioCtx();                                   // unlock audio inside the click
   await endSession();
   connecting = true; $('newtab-btn').hidden = !IN_IFRAME;
   if (kind === 'voice') { $('live-btn').classList.add('connecting'); $('live-label').textContent = lang === 'ru' ? 'Подключение…' : 'Қосылуда…'; }
   setStatus(lang === 'ru' ? 'Подключение…' : 'Қосылып жатыр…');
   const p = current, h = histories[p.id];
-  const first = h.length <= 1 ? p.greet : (lang === 'ru' ? 'Да, я слушаю тебя, балам.' : 'Иә, балам, тыңдап отырмын.');
-  let skipFirst = h.length <= 1;
+  // typed question → no spoken greeting, answer straight away; voice → greet first
+  const first = kind !== 'voice' ? '' : (h.length <= 1 ? p.greet : (lang === 'ru' ? 'Да, я слушаю тебя, балам.' : 'Иә, балам, тыңдап отырмын.'));
+  let skipFirst = kind === 'voice' && h.length <= 1;
+  const s = new AgentSession({
+    override: {
+      agent: { prompt: { prompt: buildPrompt(p) }, first_message: first, language: lang },
+      tts: { voice_id: p.voice, speed: p.speed || 1 },
+    },
+    onDisconnect: () => { if (session === s) { session = null; sessionKind = null; } $('live-btn').classList.remove('on', 'connecting'); $('live-label').textContent = liveLabel(); wave.classList.remove('on', 'listen'); avatar.setTalk(false); },
+    onModeChange: ({ mode: m }) => {
+      const speaking = m === 'speaking';
+      avatar.setTalk(speaking);
+      wave.classList.toggle('on', speaking || kind === 'voice'); wave.classList.toggle('listen', !speaking && kind === 'voice');
+      setStatus(speaking ? (lang === 'ru' ? 'Говорит…' : 'Сөйлеп тұр…') : (kind === 'voice' ? (lang === 'ru' ? 'Слушает вас…' : 'Сізді тыңдап тұр…') : ''));
+    },
+    onMessage: ({ source, message }) => {
+      if (current !== p) return;
+      const txt = cleanText(message); if (!txt) return;
+      if (source === 'ai') {
+        if (skipFirst) { skipFirst = false; return; }
+        typingOff(); h.push({ role: 'assistant', content: txt }); addMsg('assistant', txt);
+      } else { h.push({ role: 'user', content: txt }); addMsg('user', txt); typingOn(); }
+    },
+  });
   try {
-    const s = await EL.Conversation.startSession({
-      agentId: AGENT_ID,
-      connectionType: 'websocket',
-      overrides: {
-        agent: { prompt: { prompt: buildPrompt(p) }, firstMessage: first, language: lang },
-        tts: { voiceId: p.voice, speed: p.speed || 1 },
-        ...(kind === 'text' ? { conversation: { textOnly: true } } : {}),
-      },
-      onConnect: () => { setStatus(kind === 'voice' ? (lang === 'ru' ? 'Говорите — я слушаю' : 'Сөйлей беріңіз — тыңдап тұрмын') : ''); },
-      onDisconnect: () => { if (session === s) { session = null; sessionKind = null; } $('live-btn').classList.remove('on', 'connecting'); $('live-label').textContent = liveLabel(); wave.classList.remove('on', 'listen'); $('portrait-wrap').classList.remove('speaking'); },
-      onError: (m) => { console.error(m); setStatus((lang === 'ru' ? 'Ошибка: ' : 'Қате: ') + m); },
-      onModeChange: ({ mode: m }) => {
-        const speaking = m === 'speaking';
-        avatar.setTalk(speaking && kind === 'voice');
-        if (kind === 'voice') { wave.classList.add('on'); wave.classList.toggle('listen', !speaking); setStatus(speaking ? (lang === 'ru' ? 'Говорит…' : 'Сөйлеп тұр…') : (lang === 'ru' ? 'Слушает вас…' : 'Сізді тыңдап тұр…')); }
-      },
-      onMessage: ({ source, message }) => {
-        if (current !== p) return;
-        const txt = cleanText(message); if (!txt) return;
-        if (source === 'ai') {
-          if (skipFirst) { skipFirst = false; return; }
-          typingOff(); h.push({ role: 'assistant', content: txt }); addMsg('assistant', txt);
-          if (kind === 'text') { setStatus(''); avatar.pulse(txt); }
-        } else { h.push({ role: 'user', content: txt }); addMsg('user', txt); typingOn(); }
-      },
-    });
+    await s.start(kind === 'voice');
     session = s; sessionKind = kind; connecting = false;
-    if (kind === 'voice') { $('live-btn').classList.remove('connecting'); $('live-btn').classList.add('on'); $('live-label').textContent = liveLabel(); }
+    setStatus(kind === 'voice' ? (lang === 'ru' ? 'Говорите — я слушаю' : 'Сөйлей беріңіз — тыңдап тұрмын') : '');
+    if (kind === 'voice') { $('live-btn').classList.remove('connecting'); $('live-btn').classList.add('on'); $('live-label').textContent = liveLabel(); wave.classList.add('on', 'listen'); }
     if (pendingText) { const t = pendingText; pendingText = null; sendText(t); }
   } catch (e) {
-    connecting = false; console.error(e);
+    connecting = false; console.error(e); try { s.endSession(); } catch (x) {}
     $('live-btn').classList.remove('connecting', 'on'); $('live-label').textContent = liveLabel();
-    const denied = /NotAllowed|Permission|denied/i.test(String(e && (e.name || e.message || e)));
-    if (denied) { setStatus(lang === 'ru' ? 'Нет доступа к микрофону. Откройте страницу в новой вкладке и разрешите микрофон.' : 'Микрофонға рұқсат жоқ. Бетті жаңа қойындыда ашып, микрофонға рұқсат беріңіз.'); $('newtab-btn').hidden = false; }
+    const denied = /NotAllowed|Permission|denied|NotFound/i.test(String(e && (e.name || e.message || e)));
+    if (denied) { setStatus(lang === 'ru' ? 'Нет доступа к микрофону. Откройте сайт и разрешите микрофон (можно и писать текстом — ответ будет голосом).' : 'Микрофонға рұқсат жоқ. Сайтта ашып, микрофонға рұқсат беріңіз (жазып сұрасаңыз да, жауап дауыспен келеді).'); $('newtab-btn').hidden = false; }
     else setStatus((lang === 'ru' ? 'Не удалось подключиться: ' : 'Қосылу мүмкін болмады: ') + (e && e.message ? e.message : e));
   }
 }
@@ -635,7 +751,7 @@ function sendText(t) {
   histories[p.id].push({ role: 'user', content: t }); addMsg('user', t); typingOn();
   try { session.sendUserMessage(t); } catch (e) { typingOff(); setStatus(String(e)); }
 }
-$('text-form').addEventListener('submit', (e) => { e.preventDefault(); const v = $('text-input').value.trim(); $('text-input').value = ''; if (v) sendText(v); });
+$('text-form').addEventListener('submit', (e) => { e.preventDefault(); audioCtx(); const v = $('text-input').value.trim(); $('text-input').value = ''; if (v) sendText(v); });
 $('live-btn').addEventListener('click', () => { if (session && sessionKind === 'voice') endSession(); else startSession('voice'); });
 $('newtab-btn').addEventListener('click', () => { try { window.open(SITE_URL, '_blank', 'noopener'); } catch (e) {} });
 
@@ -667,26 +783,26 @@ const avatar = (() => {
     vec2 uv = v;
     vec2 c = vec2(M.x, M.y - FH*0.35);
     float headW = smoothstep(0.55, 0.0, distance(uv, c));
-    uv.x += (sin(t*0.8)*0.004 + op*0.003*sin(t*9.0)) * headW;
-    uv.y += (sin(t*1.1)*0.002 - op*0.002) * headW;
+    uv.x += sin(t*0.8)*0.003 * headW;
+    uv.y += (sin(t*1.1)*0.0015 - op*0.0012) * headW;
     uv = (uv - vec2(0.5, 0.62)) / (1.0 + 0.005*sin(t*1.3)) + vec2(0.5, 0.62);
     float inner = 0.0;
     if (has > 0.5) {
       float hw = M.z*0.5, dx = abs(uv.x - M.x), dy = uv.y - M.y;
-      float D = op * FH * 0.075;
-      float wx = 1.0 - smoothstep(hw*1.1, hw*2.6, dx);
-      float wy = 1.0 - smoothstep(FH*0.16, FH*0.42, dy);
+      float D = op * FH * 0.045;
+      float wx = 1.0 - smoothstep(hw*0.85, hw*1.9, dx);
+      float wy = 1.0 - smoothstep(FH*0.10, FH*0.30, dy);
       float w = (dy > 0.0) ? wx*wy : 0.0;
       float gap = D * w;
       if (dy > 0.0 && dy < gap) {
-        float e = pow(dx/(hw*0.95), 2.0) + pow((dy - gap*0.5)/(gap*0.5 + 1e-4), 2.0);
+        float e = pow(dx/(hw*0.8), 2.0) + pow((dy - gap*0.5)/(gap*0.5 + 1e-4), 2.0);
         inner = 1.0 - smoothstep(0.7, 1.0, e);
       }
       uv.y -= gap;
-      if (dy < 0.0 && dy > -FH*0.05) uv.y += op*FH*0.012*wx*(1.0 + dy/(FH*0.05));   // upper lip lifts a little
+      if (dy < 0.0 && dy > -FH*0.05) uv.y += op*FH*0.006*wx*(1.0 + dy/(FH*0.05));   // upper lip lifts a little
     }
     vec4 col = texture2D(T, clamp(uv, 0.0, 1.0));
-    col.rgb = mix(col.rgb, vec3(0.16, 0.06, 0.05), inner*0.92);
+    col.rgb = mix(col.rgb, col.rgb*0.25 + vec3(0.08, 0.02, 0.02), inner*0.85);
     float scan = 0.5 + 0.5*sin(v.y*900.0 + t*6.0);
     col.rgb += vec3(0.0, 0.10, 0.14) * scan * 0.05;
     float edge = smoothstep(0.0, 0.06, v.x) * smoothstep(1.0, 0.94, v.x) * smoothstep(0.0, 0.05, v.y) * smoothstep(1.0, 0.9, v.y);
@@ -748,14 +864,15 @@ function openBook(p) {
   setStatus(lang === 'ru' ? 'Нажмите «Говорить голосом», чтобы начать живой разговор' : '«Дауыспен сөйлесу» батырмасын басып, тірідей сөйлесіңіз');
   $('newtab-btn').hidden = !IN_IFRAME;
   $('live-label').textContent = liveLabel();
-  cover.classList.remove('open');
+  clearTimeout(closeTimer);
+  overlay.classList.remove('show', 'closing'); void overlay.offsetWidth;   // restart the opening choreography
   overlay.classList.add('show'); overlay.setAttribute('aria-hidden', 'false');
-  setTimeout(() => cover.classList.add('open'), 420);
 }
+let closeTimer = 0;
 function closeBook() {
   endSession(); pendingText = null;
-  cover.classList.remove('open');
-  overlay.classList.remove('show'); overlay.setAttribute('aria-hidden', 'true');
+  overlay.classList.add('closing'); overlay.setAttribute('aria-hidden', 'true');
+  clearTimeout(closeTimer); closeTimer = setTimeout(() => overlay.classList.remove('show', 'closing'), 480);
   bookOpen = false; document.body.classList.remove('reading');
   const t = controls.target.clone();
   const back = new THREE.Vector3().subVectors(camera.position, t).normalize().multiplyScalar(70).add(t);
