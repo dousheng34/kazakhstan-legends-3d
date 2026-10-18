@@ -6,7 +6,7 @@ export class AgentSession {
   constructor(options) {
     this.o = options; this.sources = new Set(); this.playHead = 0;
     this.outRate = 16000; this.inRate = 16000; this.micLevel = 0;
-    this.closed = false; this.mode = 'listening'; this.interruptedId = -1;
+    this.closed = false; this.mode = 'listening'; this.interruptedId = -1; this.pendingAt = 0; this.pendingKind = '';
   }
   async start(withMic) {
     try {
@@ -81,14 +81,20 @@ export class AgentSession {
       case 'audio': {
         const audio = event.audio_event || {};
         if (Number.isFinite(audio.event_id) && audio.event_id <= this.interruptedId) return;
-        if (audio.audio_base_64) this.play(audio.audio_base_64);
+        if (audio.audio_base_64) {
+          if (this.pendingAt) {
+            this.o.onLatency?.({ kind: this.pendingKind, ms: Math.round(performance.now() - this.pendingAt) });
+            this.pendingAt = 0;
+          }
+          this.play(audio.audio_base_64);
+        }
         break;
       }
       case 'agent_response': this.o.onMessage?.({ source: 'ai', message: event.agent_response_event?.agent_response }); break;
-      case 'user_transcript': this.o.onMessage?.({ source: 'user', message: event.user_transcription_event?.user_transcript }); break;
+      case 'user_transcript': this.pendingAt = performance.now(); this.pendingKind = 'transcript→audio'; this.o.onMessage?.({ source: 'user', message: event.user_transcription_event?.user_transcript }); break;
       case 'interruption':
         if (Number.isFinite(event.interruption_event?.event_id)) this.interruptedId = Math.max(this.interruptedId, event.interruption_event.event_id);
-        this.stopAudio(); this.o.onInterruption?.(); break;
+        this.pendingAt = 0; this.stopAudio(); this.o.onInterruption?.(); break;
       case 'ping': this.ws?.readyState === 1 && this.ws.send(JSON.stringify({ type: 'pong', event_id: event.ping_event?.event_id })); break;
       case 'error': this.fail(new Error('Voice service returned an error')); break;
     }
@@ -127,6 +133,7 @@ export class AgentSession {
   getInputVolume() { return this.micLevel; }
   sendUserMessage(text) {
     if (this.closed || this.ws?.readyState !== 1) throw new Error('Voice session is not connected');
+    this.pendingAt = performance.now(); this.pendingKind = 'text→audio';
     this.ws.send(JSON.stringify({ type: 'user_message', text }));
   }
   fail(error) { if (this.closed) return; this.o.onError?.(error); this.finish(); }

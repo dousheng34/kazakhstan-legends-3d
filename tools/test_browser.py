@@ -34,7 +34,7 @@ async def main():
       await ctx.add_init_script(MOCK)
       page=await ctx.new_page(); errors=[]
       page.on('pageerror',lambda error:errors.append(str(error)))
-      await page.goto('http://127.0.0.1:8000',wait_until='domcontentloaded')
+      await page.goto('http://127.0.0.1:8000/?debug',wait_until='domcontentloaded')
       await page.wait_for_function("!document.getElementById('enter-btn').disabled",timeout=90000)
       dims=await page.evaluate("({width:document.querySelector('#stage canvas').width,height:document.querySelector('#stage canvas').height,overflow:document.documentElement.scrollWidth>innerWidth})")
       assert dims['width']*dims['height']<=3840*2160+5000,dims
@@ -51,6 +51,8 @@ async def main():
         info=await page.evaluate("({mic:window.__micRequests,messages:__voiceSockets[0].sent})")
         assert info['mic']==0,info
         assert info['messages'][0]['conversation_config_override']['agent']['first_message']=='',info
+        await page.evaluate("__voiceSockets[0].emit({type:'audio',audio_event:{event_id:1,audio_base_64:'AAAA'.repeat(40)}})")
+        await page.wait_for_function("document.getElementById('latency-debug')?.textContent.includes('text→audio')")
         await page.evaluate("__voiceSockets[0].emit({type:'agent_response',agent_response_event:{agent_response:'Тест жауап'}})")
         await page.wait_for_function("document.getElementById('chat-log').textContent.includes('Тест жауап')")
         # Real browser fake microphone + AudioWorklet, mocked server only.

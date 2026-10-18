@@ -549,7 +549,7 @@ document.querySelectorAll('#nav button').forEach((btn) => btn.addEventListener('
   flyTo({ pos: tg.clone().add(off), target: tg, mode }, 420, () => setMode(mode));
 }));
 
-$('q-btn').textContent = LOW ? 'AUTO' : 'HQ';
+$('q-btn').textContent = LOW ? 'SD' : 'HD';
 $('q-btn').title = LOW ? 'Performance mode / Өнімділік режимі' : 'Adaptive high quality, up to 4K / 4K дейін';
 $('q-btn').addEventListener('click', () => {
   const next = LOW ? 'high' : 'medium';
@@ -633,6 +633,20 @@ async function endSession({ keepPending = false } = {}) {
 window.addEventListener('pagehide', () => { endSession(); sharedCtx?.suspend(); });
 const liveLabel = () => (session && sessionKind === 'voice' ? (lang === 'ru' ? 'Завершить разговор' : 'Сөйлесуді аяқтау') : (lang === 'ru' ? 'Говорить голосом' : 'Дауыспен сөйлесу'));
 
+// Add ?debug to the URL to show request → first-audio timings (hidden for normal visitors).
+const DEBUG_LATENCY = new URLSearchParams(location.search).has('debug');
+const latencySamples = [];
+function showLatency(kind, ms) {
+  latencySamples.push(ms); if (latencySamples.length > 20) latencySamples.shift();
+  let el = document.getElementById('latency-debug');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'latency-debug';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.72);color:#fff;font:12px/1.4 monospace;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  const sorted = [...latencySamples].sort((a, b) => a - b);
+  el.textContent = `${kind}: ${ms} ms · median ${sorted[Math.floor(sorted.length / 2)]} ms · n=${sorted.length}`;
+}
 let replyTimer = 0;
 function waitForReply() {
   typingOn(); clearTimeout(replyTimer);
@@ -666,6 +680,11 @@ async function startSession(kind) {
       tts: { voice_id: p.voice, speed: p.speed || 1 },
     },
     onError: error => { transportError = error; },
+    onLatency: ({ kind, ms }) => {
+      if (!active()) return;
+      console.info(`[latency] ${kind}: ${ms} ms`);
+      if (DEBUG_LATENCY) showLatency(kind, ms);
+    },
     onDisconnect: () => {
       if (!active()) return;
       endSession();

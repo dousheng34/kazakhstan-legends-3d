@@ -93,3 +93,14 @@ for (const rate of [44100, 48000]) test(`worklet ${rate} Hz to 16 kHz: continuou
   assert.equal(packets.length, 25); assert.equal(packets[0].pcm.byteLength, 1280);
   for (const packet of packets) { assert.ok(Math.abs(packet.level - 0.5) < 0.0001); assert.ok([...new Int16Array(packet.pcm)].every(n => Math.abs(n - 16384) <= 1)); }
 });
+
+test('latency: typed request and transcript are measured once, interruption cancels measurement', async () => {
+  const seen = [];
+  const s = session({ onLatency: x => seen.push(x) }); const ws = await ready(s);
+  s.sendUserMessage('a'); ws.message(audio(1)); ws.message(audio(2));
+  assert.equal(seen.length, 1); assert.equal(seen[0].kind, 'text→audio'); assert.ok(seen[0].ms >= 0);
+  ws.message({ type: 'user_transcript', user_transcription_event: { user_transcript: 'x' } }); ws.message(audio(3));
+  assert.equal(seen.length, 2); assert.equal(seen[1].kind, 'transcript→audio');
+  s.sendUserMessage('b'); ws.message({ type: 'interruption', interruption_event: { event_id: 3 } }); ws.message(audio(4));
+  assert.equal(seen.length, 2); await s.endSession();
+});
