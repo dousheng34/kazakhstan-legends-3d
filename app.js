@@ -688,14 +688,128 @@ class AgentSession {
   }
 }
 
+
+/* =========================================================
+   Gemini speech recognition (browser mic → Gemini → text → ElevenLabs voice)
+   ========================================================= */
+// The key is never stored in the repo: open the site once with #gk=YOUR_KEY (or use the "Gemini" link)
+// and it is kept only in this browser's localStorage.
+let GEMINI_KEY = '';
+(() => {
+  try {
+    const m = /[#&]gk=([^&]+)/.exec(location.hash);
+    if (m) { localStorage.setItem('kz_gemini_key', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname + location.search); }
+    GEMINI_KEY = localStorage.getItem('kz_gemini_key') || '';
+  } catch (e) {}
+})();
+const STT_MODELS = ['gemini-3.5-transcribe', 'gemini-3.5-flash'];
+function wavB64(f32, rate) {
+  const n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 0x7fff, true);
+  return bytesToB64(new Uint8Array(buf));
+}
+async function geminiTranscribe(f32, rate, p) {
+  const names = PERSONS.map((x) => x.name).join(', ');
+  const prompt = (lang === 'ru'
+    ? 'В аудио человек говорит по-русски (возможны казахские слова). Запиши сказанное дословно. Верни только текст, без пояснений. Если речи нет — верни пустую строку.'
+    : 'Бұл аудиода адам қазақ тілінде сөйлейді (кейде орыс сөздері араласуы мүмкін). Айтылған сөзді сөзбе-сөз, қазақ кириллицасымен дәл жаз (ә, ғ, қ, ң, ө, ұ, ү, һ, і әріптерін дұрыс қолдан). Тек айтылған мәтінді қайтар — түсіндірме, тырнақша, аударма қоспа. Сөз естілмесе, бос жол қайтар.')
+    + ` Әңгімелесуші: ${p.name}. Кездесуі мүмкін есімдер: ${names}.`;
+  const body = { contents: [{ parts: [{ inline_data: { mime_type: 'audio/wav', data: wavB64(f32, rate) } }, { text: prompt }] }], generationConfig: { temperature: 0 } };
+  let lastErr = null;
+  for (const model of STT_MODELS) {
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY }, body: JSON.stringify(body) });
+      if (!r.ok) { lastErr = new Error('Gemini ' + r.status); continue; }
+      const j = await r.json();
+      const parts = (((j.candidates || [])[0] || {}).content || {}).parts || [];
+      const txt = parts.map((x) => (x.audioTranscription && x.audioTranscription.text) || x.text || '').join(' ').trim();
+      return txt.replace(/^["«“]+|["»”]+$/g, '').trim();
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('Gemini');
+}
+class GeminiListener {
+  constructor(opts) { this.o = opts; this.level = 0; this.state = 'idle'; this.closed = false; }
+  async start() {
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    const src = `class Cap extends AudioWorkletProcessor { process(i){ const c = i[0] && i[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; } } registerProcessor('cap-proc', Cap);`;
+    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
+    try {                                                      // 16 kHz context → browser does proper resampling
+      this.ctx = new AudioContext({ sampleRate: 16000 });
+      await this.ctx.audioWorklet.addModule(url);
+      this.micSrc = this.ctx.createMediaStreamSource(this.stream);
+    } catch (e) {                                              // fallback (e.g. Firefox): native rate, resample in JS
+      try { this.ctx && this.ctx.close(); } catch (x) {}
+      this.ctx = new AudioContext(); await this.ctx.audioWorklet.addModule(url);
+      this.micSrc = this.ctx.createMediaStreamSource(this.stream);
+    }
+    if (this.ctx.state === 'suspended') await this.ctx.resume();
+    this.rate = 16000; const ratio = this.ctx.sampleRate / 16000;
+    this.node = new AudioWorkletNode(this.ctx, 'cap-proc');
+    const mute = this.ctx.createGain(); mute.gain.value = 0;
+    this.micSrc.connect(this.node); this.node.connect(mute); mute.connect(this.ctx.destination);
+    let pos = 0, frame = [];
+    const FR = 480;                                            // 30 ms frames at 16 kHz
+    this.node.port.onmessage = (e) => {
+      const x = e.data;
+      if (ratio === 1) { for (let i = 0; i < x.length; i++) frame.push(x[i]); }
+      else { while (pos < x.length) { const i0 = Math.floor(pos), i1 = Math.min(x.length, Math.max(i0 + 1, Math.floor(pos + ratio))); let s = 0; for (let i = i0; i < i1; i++) s += x[i]; frame.push(s / (i1 - i0)); pos += ratio; } pos -= x.length; }
+      while (frame.length >= FR) { this.onFrame(Float32Array.from(frame.splice(0, FR))); }
+    };
+    this.floor = 0.004; this.pre = []; this.rec = []; this.voiced = 0; this.silent = 0; this.loud = 0;
+    this.setState('listening');
+  }
+  setState(st) { if (this.state !== st) { this.state = st; this.o.onState && this.o.onState(st); } }
+  onFrame(f) {
+    if (this.closed) return;
+    let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
+    const rms = Math.sqrt(sum / f.length); this.level = rms;
+    const blocked = this.o.isBlocked && this.o.isBlocked();      // agent talking / waiting for its answer
+    if (blocked || this.state === 'busy') { this.pre = []; this.rec = []; this.voiced = this.loud = 0; if (this.state === 'recording') this.setState('listening'); return; }
+    if (this.state !== 'recording') this.floor = this.floor * 0.97 + Math.min(rms, 0.05) * 0.03;
+    const thr = Math.max(0.012, this.floor * 3.2);
+    if (this.state === 'listening') {
+      this.pre.push(f); if (this.pre.length > 12) this.pre.shift();          // 360 ms pre-roll
+      this.loud = rms > thr ? this.loud + 1 : 0;
+      if (this.loud >= 3) { this.rec = this.pre.slice(); this.pre = []; this.voiced = 3; this.silent = 0; this.setState('recording'); }
+      return;
+    }
+    // recording
+    this.rec.push(f);
+    if (rms > thr * 0.75) { this.voiced++; this.silent = 0; } else this.silent++;
+    const tooLong = this.rec.length > 30000 / 30;               // 30 s max
+    if (this.silent * 30 >= 1100 || tooLong) {                   // 1.1 s pause = end of phrase
+      const frames = this.rec, trail = this.silent; this.rec = []; this.silent = 0;
+      if (this.voiced * 30 < 300) { this.voiced = 0; this.setState('listening'); return; }   // too short → noise
+      this.voiced = 0;
+      const keep = frames.slice(0, frames.length - Math.max(0, trail - 10));   // drop most of the trailing silence
+      const n = keep.reduce((a, b) => a + b.length, 0), all = new Float32Array(n); let o = 0; keep.forEach((b) => { all.set(b, o); o += b.length; });
+      this.setState('busy');
+      this.o.onUtterance(all, this.rate).finally(() => { if (!this.closed) this.setState('listening'); });
+    }
+  }
+  stop() {
+    this.closed = true;
+    try { this.node && (this.node.port.onmessage = null); this.micSrc && this.micSrc.disconnect(); } catch (e) {}
+    try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
+    try { this.ctx && this.ctx.close(); } catch (e) {}
+  }
+}
+let listener = null;
 async function endSession() {
   const s = session; session = null; sessionKind = null;
+  if (listener) { listener.stop(); listener = null; }
   if (s) { try { await s.endSession(); } catch (e) {} }
   $('live-btn').classList.remove('on', 'connecting'); $('live-label').textContent = liveLabel();
   avatar && avatar.setTalk && avatar.setTalk(false); wave.classList.remove('on', 'listen');
 }
 const liveLabel = () => (session && sessionKind === 'voice' ? (lang === 'ru' ? 'Завершить разговор' : 'Сөйлесуді аяқтау') : (lang === 'ru' ? 'Говорить голосом' : 'Дауыспен сөйлесу'));
 
+let awaitingReply = false, replyTimer = 0;
 async function startSession(kind) {
   if (!current || connecting) return;
   audioCtx();                                   // unlock audio inside the click
@@ -724,13 +838,36 @@ async function startSession(kind) {
       const txt = cleanText(message); if (!txt) return;
       if (source === 'ai') {
         if (skipFirst) { skipFirst = false; return; }
-        typingOff(); h.push({ role: 'assistant', content: txt }); addMsg('assistant', txt);
+        typingOff(); awaitingReply = false; h.push({ role: 'assistant', content: txt }); addMsg('assistant', txt);
       } else { h.push({ role: 'user', content: txt }); addMsg('user', txt); typingOn(); }
     },
   });
   try {
-    await s.start(kind === 'voice');
+    const useGemini = kind === 'voice' && !!GEMINI_KEY;
+    await s.start(kind === 'voice' && !useGemini);   // with Gemini: ElevenLabs = brain + voice, Gemini = ears
     session = s; sessionKind = kind; connecting = false;
+    if (useGemini) {
+      const L = listener = new GeminiListener({
+        isBlocked: () => !session || session !== s || s.mode === 'speaking' || s.playHead > s.ctx.currentTime - 0.25 || awaitingReply,
+        onState: (st) => {
+          if (listener !== L || session !== s || s.mode === 'speaking') return;
+          wave.classList.toggle('listen', st !== 'busy');
+          setStatus(st === 'recording' ? (lang === 'ru' ? 'Слушаю…' : 'Тыңдап тұрмын…')
+            : st === 'busy' ? (lang === 'ru' ? 'Распознаю вашу речь…' : 'Сөзіңізді танып жатырмын…')
+            : (lang === 'ru' ? 'Говорите — я слушаю' : 'Сөйлей беріңіз — тыңдап тұрмын'));
+        },
+        onUtterance: async (pcm, rate) => {
+          try {
+            const text = await geminiTranscribe(pcm, rate, p);
+            if (!text || session !== s || current !== p) return;
+            h.push({ role: 'user', content: text }); addMsg('user', text); typingOn();
+            awaitingReply = true; clearTimeout(replyTimer); replyTimer = setTimeout(() => { awaitingReply = false; }, 15000);
+            s.sendUserMessage(text);
+          } catch (e) { console.error(e); setStatus(lang === 'ru' ? 'Не удалось распознать, повторите, пожалуйста.' : 'Сөзді тану мүмкін болмады, қайталап айтыңызшы.'); }
+        },
+      });
+      await L.start();
+    }
     setStatus(kind === 'voice' ? (lang === 'ru' ? 'Говорите — я слушаю' : 'Сөйлей беріңіз — тыңдап тұрмын') : '');
     if (kind === 'voice') { $('live-btn').classList.remove('connecting'); $('live-btn').classList.add('on'); $('live-label').textContent = liveLabel(); wave.classList.add('on', 'listen'); }
     if (pendingText) { const t = pendingText; pendingText = null; sendText(t); }
@@ -753,13 +890,21 @@ function sendText(t) {
 }
 $('text-form').addEventListener('submit', (e) => { e.preventDefault(); audioCtx(); const v = $('text-input').value.trim(); $('text-input').value = ''; if (v) sendText(v); });
 $('live-btn').addEventListener('click', () => { if (session && sessionKind === 'voice') endSession(); else startSession('voice'); });
+$('gk-btn').addEventListener('click', () => {
+  const v = window.prompt(lang === 'ru' ? 'Ключ Gemini API (хранится только в этом браузере). Пусто — удалить.' : 'Gemini API кілті (тек осы браузерде сақталады). Бос қалдырсаңыз — өшіріледі.', GEMINI_KEY ? '••••••' : '');
+  if (v === null || v === '••••••') return;
+  GEMINI_KEY = v.trim(); try { GEMINI_KEY ? localStorage.setItem('kz_gemini_key', GEMINI_KEY) : localStorage.removeItem('kz_gemini_key'); } catch (e) {}
+  updateGkBtn();
+});
+function updateGkBtn() { const b = $('gk-btn'); b.classList.toggle('on', !!GEMINI_KEY); b.textContent = GEMINI_KEY ? 'Gemini ✓' : 'Gemini'; b.title = GEMINI_KEY ? (lang === 'ru' ? 'Речь распознаёт Gemini' : 'Сөзді Gemini таниды') : (lang === 'ru' ? 'Подключить Gemini для распознавания речи' : 'Сөзді тану үшін Gemini қосу'); }
+updateGkBtn();
 $('newtab-btn').addEventListener('click', () => { try { window.open(SITE_URL, '_blank', 'noopener'); } catch (e) {} });
 
 // live volume meter
 const bars = [...wave.querySelectorAll('i')];
 function meter() {
   if (session && sessionKind === 'voice') {
-    let v = 0; try { v = wave.classList.contains('listen') ? session.getInputVolume() : session.getOutputVolume(); } catch (e) {}
+    let v = 0; try { v = wave.classList.contains('listen') ? (listener ? listener.level * 3 : session.getInputVolume()) : session.getOutputVolume(); } catch (e) {}
     bars.forEach((b, i) => { const k = 0.55 + 0.45 * Math.sin(performance.now() / 120 + i * 1.3); b.style.height = (4 + Math.min(1, v * 2.2) * 18 * k).toFixed(1) + 'px'; });
   }
   requestAnimationFrame(meter);
