@@ -1,0 +1,9 @@
+{
+  "name": "kazakhstan-legends-3d",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --check app.js && node --check voice-session.js && node --check pcm-capture-worklet.js && node render-quality.test.js && node --test voice-session.test.mjs",
+    "serve": "python3 -m http.server 8000"
+  }
+}
