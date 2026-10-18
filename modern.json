@@ -36,7 +36,12 @@
   },
   "low_res": false,
   "img": "img/dimash.jpg",
-  "img_hi": "img_hi/dimash.jpg"
+  "img_hi": "img_hi/dimash.jpg",
+  "geo": [
+   50.283,
+   57.167
+  ],
+  "geo_note": "Ақтөбе"
  },
  {
   "id": "golovkin",
@@ -75,7 +80,12 @@
   },
   "low_res": true,
   "img": "img/golovkin.jpg",
-  "img_hi": "img/golovkin.jpg"
+  "img_hi": "img/golovkin.jpg",
+  "geo": [
+   49.807,
+   73.088
+  ],
+  "geo_note": "Қарағанды"
  },
  {
   "id": "rybakina",
@@ -114,7 +124,12 @@
   },
   "low_res": false,
   "img": "img/rybakina.jpg",
-  "img_hi": "img_hi/rybakina.jpg"
+  "img_hi": "img_hi/rybakina.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы (символдық)"
  },
  {
   "id": "denis_ten",
@@ -153,7 +168,12 @@
   },
   "low_res": true,
   "img": "img/denis_ten.jpg",
-  "img_hi": "img/denis_ten.jpg"
+  "img_hi": "img/denis_ten.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы"
  },
  {
   "id": "rymbayeva",
@@ -192,7 +212,12 @@
   },
   "low_res": true,
   "img": "img/rymbayeva.jpg",
-  "img_hi": "img/rymbayeva.jpg"
+  "img_hi": "img/rymbayeva.jpg",
+  "geo": [
+   50.411,
+   80.227
+  ],
+  "geo_note": "Семей (Шығыс Қазақстан, шамамен)"
  },
  {
   "id": "suleimenov",
@@ -231,7 +256,12 @@
   },
   "low_res": false,
   "img": "img/suleimenov.jpg",
-  "img_hi": "img_hi/suleimenov.jpg"
+  "img_hi": "img_hi/suleimenov.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы"
  },
  {
   "id": "kekilbayev",
@@ -270,7 +300,12 @@
   },
   "low_res": false,
   "img": "img/kekilbayev.jpg",
-  "img_hi": "img_hi/kekilbayev.jpg"
+  "img_hi": "img_hi/kekilbayev.jpg",
+  "geo": [
+   43.651,
+   51.158
+  ],
+  "geo_note": "Маңғыстау (Ақтау, шамамен)"
  },
  {
   "id": "putintseva",
@@ -309,7 +344,12 @@
   },
   "low_res": false,
   "img": "img/putintseva.jpg",
-  "img_hi": "img_hi/putintseva.jpg"
+  "img_hi": "img_hi/putintseva.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы (символдық)"
  },
  {
   "id": "abdumalik",
@@ -348,7 +388,12 @@
   },
   "low_res": false,
   "img": "img/abdumalik.jpg",
-  "img_hi": "img_hi/abdumalik.jpg"
+  "img_hi": "img_hi/abdumalik.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы"
  },
  {
   "id": "saduakassova",
@@ -387,7 +432,12 @@
   },
   "low_res": false,
   "img": "img/saduakassova.jpg",
-  "img_hi": "img_hi/saduakassova.jpg"
+  "img_hi": "img_hi/saduakassova.jpg",
+  "geo": [
+   51.169,
+   71.449
+  ],
+  "geo_note": "Астана"
  },
  {
   "id": "assaubayeva",
@@ -426,7 +476,12 @@
   },
   "low_res": false,
   "img": "img/assaubayeva.jpg",
-  "img_hi": "img_hi/assaubayeva.jpg"
+  "img_hi": "img_hi/assaubayeva.jpg",
+  "geo": [
+   42.901,
+   71.378
+  ],
+  "geo_note": "Тараз"
  },
  {
   "id": "ashimov",
@@ -465,7 +520,12 @@
   },
   "low_res": true,
   "img": "img/ashimov.jpg",
-  "img_hi": "img/ashimov.jpg"
+  "img_hi": "img/ashimov.jpg",
+  "geo": [
+   42.901,
+   71.378
+  ],
+  "geo_note": "Жамбыл облысы (Тараз, шамамен)"
  },
  {
   "id": "diyas",
@@ -504,7 +564,12 @@
   },
   "low_res": false,
   "img": "img/diyas.jpg",
-  "img_hi": "img_hi/diyas.jpg"
+  "img_hi": "img_hi/diyas.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы"
  },
  {
   "id": "danilina",
@@ -543,7 +608,12 @@
   },
   "low_res": false,
   "img": "img/danilina.jpg",
-  "img_hi": "img_hi/danilina.jpg"
+  "img_hi": "img_hi/danilina.jpg",
+  "geo": [
+   51.169,
+   71.449
+  ],
+  "geo_note": "Астана (символдық)"
  },
  {
   "id": "dnishev",
@@ -582,6 +652,11 @@
   },
   "low_res": false,
   "img": "img/dnishev.jpg",
-  "img_hi": "img_hi/dnishev.jpg"
+  "img_hi": "img_hi/dnishev.jpg",
+  "geo": [
+   43.238,
+   76.946
+  ],
+  "geo_note": "Алматы"
  }
 ]
