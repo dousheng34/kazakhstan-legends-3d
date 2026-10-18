@@ -19,14 +19,15 @@ async def run_case(b, name, w, h, dpr, touch, hist, n_people):
   info = {'case': name, 'hist': hist}
   info['map_books'] = await pg.evaluate('window.__kz.books.length')
   info['old_buttons_hidden'] = await pg.evaluate("['list-toggle','panel'].every(id => getComputedStyle(document.getElementById(id)).display === 'none') && getComputedStyle(document.querySelector('.search-wrap')).display === 'none'")
-  await pg.locator('#enter-btn').click(); await pg.wait_for_timeout(4200)
-  await pg.locator('#select-btn').click(); await pg.wait_for_selector('#select-screen.show')
+  await pg.locator('#enter-btn').click()
+  await pg.wait_for_selector('#warp', timeout=15000); info['teleport'] = True      # warp overlay during the descent
+  await pg.wait_for_selector('#select-screen.show', timeout=20000)                   # the big book opens by itself
   await pg.wait_for_timeout(600)
   info['tiles'] = await pg.locator('.sel-tile').count()
   info['overflow_x'] = await pg.evaluate('document.documentElement.scrollWidth > innerWidth')
   info['overlap'] = await pg.evaluate("""(() => { const t=[...document.querySelectorAll('.sel-tile')].slice(0,12).map(e=>e.getBoundingClientRect());
      for (let i=0;i<t.length;i++) for (let j=i+1;j<t.length;j++){ const a=t[i],c=t[j]; if (a.left<c.right-3&&c.left<a.right-3&&a.top<c.bottom-3&&c.top<a.bottom-3) return true;} return false; })()""")
-  assert info['tiles'] == n_people and info['map_books'] == n_people, info
+  assert info['tiles'] == n_people and info['map_books'] == 1, info   # one shared big book on the land
   assert info['old_buttons_hidden'] and not info['overflow_x'] and not info['overlap'], info
   if not touch and not hist:
     await pg.locator('.sel-search input').fill('голов'); await pg.wait_for_timeout(200)
@@ -48,8 +49,9 @@ async def run_case(b, name, w, h, dpr, touch, hist, n_people):
   await pg.wait_for_timeout(800)
   info['book'] = await pg.locator('#left-name').inner_text()
   info['ai_note'] = bool(await pg.evaluate("!!document.getElementById('ai-note')"))
+  info['voice_disclosure'] = 'нақты адамның дауысы емес' in (await pg.evaluate("document.querySelector('.credit-small')?.textContent||''"))
   info['photo_credit'] = await pg.locator('.credit-small').inner_text()
-  assert info['ai_note'] and errs == [] and bad == [], (info, errs, bad)
+  assert not info['ai_note'] and info['voice_disclosure'] and errs == [] and bad == [], (info, errs, bad)
   await ctx.close()
   return info
 

@@ -41,7 +41,9 @@
    50.283,
    57.167
   ],
-  "geo_note": "Ақтөбе"
+  "geo_note": "Ақтөбе",
+  "voice": "zOpa1hybmCey0nqbmcMW",
+  "speed": 1.0
  },
  {
   "id": "golovkin",
@@ -85,7 +87,9 @@
    49.807,
    73.088
   ],
-  "geo_note": "Қарағанды"
+  "geo_note": "Қарағанды",
+  "voice": "Vp3gaOLjssOTvqcooFwg",
+  "speed": 0.98
  },
  {
   "id": "rybakina",
@@ -129,7 +133,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы (символдық)"
+  "geo_note": "Алматы (символдық)",
+  "voice": "cgSgspJ2msm6clMCkdW9",
+  "speed": 1.0
  },
  {
   "id": "denis_ten",
@@ -173,7 +179,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы"
+  "geo_note": "Алматы",
+  "voice": "nXhev13NFTenmq7t5WZH",
+  "speed": 1.0
  },
  {
   "id": "rymbayeva",
@@ -217,7 +225,9 @@
    50.411,
    80.227
   ],
-  "geo_note": "Семей (Шығыс Қазақстан, шамамен)"
+  "geo_note": "Семей (Шығыс Қазақстан, шамамен)",
+  "voice": "L9IT3CnBaFSG99pi86dr",
+  "speed": 0.95
  },
  {
   "id": "suleimenov",
@@ -261,7 +271,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы"
+  "geo_note": "Алматы",
+  "voice": "nPczCjzI2devNBz1zQrb",
+  "speed": 0.92
  },
  {
   "id": "kekilbayev",
@@ -305,7 +317,9 @@
    43.651,
    51.158
   ],
-  "geo_note": "Маңғыстау (Ақтау, шамамен)"
+  "geo_note": "Маңғыстау (Ақтау, шамамен)",
+  "voice": "dQO3cohklRk58SrkwMjq",
+  "speed": 0.93
  },
  {
   "id": "putintseva",
@@ -349,7 +363,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы (символдық)"
+  "geo_note": "Алматы (символдық)",
+  "voice": "FGY2WhTYpPnrIDTdsKH5",
+  "speed": 1.02
  },
  {
   "id": "abdumalik",
@@ -393,7 +409,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы"
+  "geo_note": "Алматы",
+  "voice": "EXAVITQu4vr4xnSDxMaL",
+  "speed": 1.0
  },
  {
   "id": "saduakassova",
@@ -437,7 +455,9 @@
    51.169,
    71.449
   ],
-  "geo_note": "Астана"
+  "geo_note": "Астана",
+  "voice": "XrExE9yKIg1WjnnlVkGX",
+  "speed": 1.0
  },
  {
   "id": "assaubayeva",
@@ -481,7 +501,9 @@
    42.901,
    71.378
   ],
-  "geo_note": "Тараз"
+  "geo_note": "Тараз",
+  "voice": "QpQ3ApUOdmaUcNblVLGC",
+  "speed": 1.02
  },
  {
   "id": "ashimov",
@@ -525,7 +547,9 @@
    42.901,
    71.378
   ],
-  "geo_note": "Жамбыл облысы (Тараз, шамамен)"
+  "geo_note": "Жамбыл облысы (Тараз, шамамен)",
+  "voice": "9NqTZSpHJZHucyduMacF",
+  "speed": 0.93
  },
  {
   "id": "diyas",
@@ -569,7 +593,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы"
+  "geo_note": "Алматы",
+  "voice": "XB0fDUnXU5powFXDhCwa",
+  "speed": 1.0
  },
  {
   "id": "danilina",
@@ -613,7 +639,9 @@
    51.169,
    71.449
   ],
-  "geo_note": "Астана (символдық)"
+  "geo_note": "Астана (символдық)",
+  "voice": "Xb7hH8MSUJpSbSDYk0k2",
+  "speed": 1.0
  },
  {
   "id": "dnishev",
@@ -657,6 +685,8 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы"
+  "geo_note": "Алматы",
+  "voice": "RojlvMxYbtU94goTCgIP",
+  "speed": 0.95
  }
 ]

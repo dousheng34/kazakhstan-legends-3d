@@ -5,13 +5,13 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const COARSE = matchMedia('(pointer: coarse)').matches;
 
 const T = {
-  kk: { title: 'ТҰЛҒАНЫ ТАҢДА', kicker: 'ҚАЗАҚСТАН · ТАНЫМАЛ ТҰЛҒАЛАР', all: 'Барлығы', modern: 'Замандастар', classic: 'Тарихи тұлғалар',
+  kk: { title: 'ТҰЛҒАНЫ ТАҢДА', kicker: 'ҰЛЫ ТҰЛҒАЛАР КІТАБЫ', potd: 'КҮННІҢ ТҰЛҒАСЫ', all: 'Барлығы', modern: 'Замандастар', classic: 'Тарихи тұлғалар',
         pick: 'ТАҢДАУ', close: 'Жабу', ai: 'AI-гид', aiHint: 'Бұл — жасанды интеллект гиді; дауыс нақты адамның дауысы емес.',
         hint: '← ↑ → ↓ таңдау · Enter — ашу · R — кездейсоқ · M — дыбыс · Esc — жабу', kk: 'ҚАЗ', ru: 'РУС', empty: 'Ештеңе табылмады',
         search: 'Іздеу: аты, қала, сала…', random: 'Кездейсоқ', sfxOn: 'Дыбыс: ҚОС', sfxOff: 'Дыбыс: ӨШІРУЛІ', slam: 'СӨЙЛЕСЕЙІК!',
         histShow: 'Тарихи тұлғаларды көрсету', histHide: 'Тарихи тұлғаларды жасыру',
         cat: { music: 'Музыка', sport: 'Спорт', science: 'Ғылым', culture: 'Мәдениет' } },
-  ru: { title: 'ВЫБЕРИ ЛЕГЕНДУ', kicker: 'КАЗАХСТАН · ИЗВЕСТНЫЕ ЛИЧНОСТИ', all: 'Все', modern: 'Современники', classic: 'Исторические',
+  ru: { title: 'ВЫБЕРИ ЛЕГЕНДУ', kicker: 'КНИГА ВЕЛИКИХ ЛИЧНОСТЕЙ', potd: 'ЛИЧНОСТЬ ДНЯ', all: 'Все', modern: 'Современники', classic: 'Исторические',
         pick: 'ВЫБРАТЬ', close: 'Закрыть', ai: 'ИИ-гид', aiHint: 'Это ИИ-гид; голос — не голос реального человека.',
         hint: '← ↑ → ↓ выбор · Enter — открыть · R — случайный · M — звук · Esc — закрыть', kk: 'КАЗ', ru: 'РУС', empty: 'Ничего не найдено',
         search: 'Поиск: имя, город, сфера…', random: 'Случайный', sfxOn: 'Звук: ВКЛ', sfxOff: 'Звук: ВЫКЛ', slam: 'ДАВАЙ ПОГОВОРИМ!',
@@ -24,11 +24,11 @@ const ACC = { music: '#d65cff', sport: '#ff6a3d', culture: '#fec50c', science: '
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 // ---- sounds: tiny WebAudio synth (no files) ----
-function makeSfx() {
+export function makeSfx() {
   let ctx = null, muted = false;
-  try { muted = localStorage.getItem('kz_sfx') === '0'; } catch (e) {}
+  const isMuted = () => { try { return localStorage.getItem('kz_sfx') === '0'; } catch (e) { return muted; } };
   const ensure = () => {
-    if (muted) return null;
+    if (isMuted()) return null;
     if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
     if (ctx.state === 'suspended') ctx.resume();
     return ctx;
@@ -55,8 +55,10 @@ function makeSfx() {
     open: () => { whoosh(0.35, 0.06); tone(220, 0.25, 'triangle', 0.05, 660); },
     pick: () => { whoosh(0.45, 0.12); tone(110, 0.5, 'sawtooth', 0.07, 45); tone(440, 0.18, 'square', 0.05, 1320, 0.06); tone(660, 0.2, 'square', 0.04, 1760, 0.14); },
     random: () => [520, 700, 900, 1180].forEach((f, i) => tone(f, 0.055, 'square', 0.03, 0, i * 0.055)),
-    isMuted: () => muted,
-    toggle() { muted = !muted; try { localStorage.setItem('kz_sfx', muted ? '0' : '1'); } catch (e) {} if (muted) { try { speechSynthesis.cancel(); } catch (e) {} } else tone(700, 0.08, 'square', 0.04, 1000); return muted; },
+    warp: () => { whoosh(1.4, 0.14); tone(90, 1.3, 'sawtooth', 0.05, 900); tone(180, 1.2, 'triangle', 0.04, 1600, 0.1); },
+    page: () => { whoosh(0.5, 0.08); tone(300, 0.2, 'triangle', 0.03, 520, 0.05); },
+    isMuted,
+    toggle() { muted = !isMuted(); try { localStorage.setItem('kz_sfx', muted ? '0' : '1'); } catch (e) {} if (muted) { try { speechSynthesis.cancel(); } catch (e) {} } else tone(700, 0.08, 'square', 0.04, 1000); return muted; },
   };
 }
 
@@ -97,12 +99,17 @@ export function initSelect({ getPeople, imgOf, hiOf, getUiLang = () => 'kk', onP
   const grid = q('.sel-grid'), hero = q('.sel-hero'), card = q('.sel-card3d'), search = q('.sel-search input');
   const sfx = makeSfx();
 
-  let filter = 'all', cat = '', query = '', sel = null, list = [], opener = null, openState = false, heroToken = 0, lockTimer = 0, hiTimer = 0, speakTimer = 0;
+  let filter = 'all', cat = '', query = '', sel = null, list = [], opener = null, openState = false, heroToken = 0, lockTimer = 0, hiTimer = 0, speakTimer = 0, pending = null;
   const tr = () => T[getUiLang()] || T.kk;
   const nameOf = (p) => (getUiLang() === 'ru' ? p.name_ru : p.name);
   const roleOf = (p) => (p.modern ? (getUiLang() === 'ru' ? p.field_ru : p.field_kk) : (getUiLang() === 'ru' ? 'Историческая личность' : 'Тарихи тұлға')) || '';
   const bioOf = (p) => (getUiLang() === 'ru' && p.bio_ru) ? p.bio_ru : p.bio;
   const accOf = (p) => ACC[p.modern ? p.category : 'classic'] || ACC.culture;
+  function potdId() {
+    const pool = getPeople().filter((p) => p.modern); if (!pool.length) return null;
+    const d = new Date(), key = d.getFullYear() * 400 + d.getMonth() * 32 + d.getDate();
+    return pool[(key * 2654435761 >>> 0) % pool.length].id;
+  }
 
   function visible() {
     const k = query.trim().toLowerCase();
@@ -159,13 +166,14 @@ export function initSelect({ getPeople, imgOf, hiOf, getUiLang = () => 'kk', onP
       const img = new Image(); img.alt = ''; img.loading = 'lazy'; img.decoding = 'async'; img.src = imgOf(p); img.draggable = false;
       const cap = el('span', 'sel-cap'); cap.append(el('b', '', nameOf(p)), el('i', '', p.years || ''));
       b.append(img, el('u', 'sel-corners'), cap);
-      if (p.modern) b.append(el('em', 'sel-tag', 'AI'));
+      if (p.id === potdId()) b.append(el('em', 'sel-potd', tr().potd));
       // mouse: hover moves the cursor, click picks. touch: first tap selects, second tap (or the big button) picks.
       b.addEventListener('click', () => { const was = sel && sel.id === p.id; select(p, false); if (!COARSE || was) confirm(); });
       if (!COARSE) b.addEventListener('pointerenter', () => select(p, false));
       grid.append(b);
     });
-    if (!sel || !list.some((p) => p.id === sel.id)) select(list[0], false, true); else select(sel, false, true);
+    const keep = (sel && list.find((p) => p.id === sel.id)) || (pending && list.find((p) => p.id === pending)) || list[0];
+    pending = null; sel = null; select(keep, false, true);      // always (re)loads the hero image
   }
 
   function fillInfo() {
@@ -176,11 +184,10 @@ export function initSelect({ getPeople, imgOf, hiOf, getUiLang = () => 'kk', onP
     q('.sel-meta').textContent = [p.years, roleOf(p), p.region].filter(Boolean).join(' · ');
     q('.sel-bio').textContent = bioOf(p) || '';
     const badges = q('.sel-badges'); badges.innerHTML = '';
-    if (p.modern) badges.append(el('span', 'sel-badge ai', t.ai));
+    if (p.id === potdId()) badges.append(el('span', 'sel-badge potd', t.potd));
     if (p.modern && p.category) badges.append(el('span', 'sel-badge cat', t.cat[p.category] || p.category));
     badges.append(el('span', 'sel-badge lang', (p.lang === 'ru' ? t.ru : t.kk)));
-    q('.sel-ai').textContent = p.modern ? t.aiHint : '';
-    q('.sel-ai').hidden = !p.modern;
+    q('.sel-ai').hidden = true;
     q('.sel-go').disabled = false;
     root.dataset.cat = p.modern ? 'modern' : 'classic';
     root.style.setProperty('--acc', accOf(p));
@@ -290,7 +297,8 @@ export function initSelect({ getPeople, imgOf, hiOf, getUiLang = () => 'kk', onP
     opener = document.activeElement; openState = true; root.hidden = false; root.classList.remove('lock');
     document.body.classList.add('selecting');
     query = ''; search.value = '';
-    render(); sfx.open();
+    if (!sel) pending = potdId();
+    render(); sfx.page();
     requestAnimationFrame(() => { root.classList.add('show'); (grid.querySelector('.sel-tile.on') || q('.sel-close')).focus({ preventScroll: true }); });
     if (sel) announce(sel);
     onOpen && onOpen();
