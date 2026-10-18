@@ -18,9 +18,12 @@ export function teleport({ title = 'ҚАЗАҚСТАН', subtitle = '', duration
     const cx = W / 2, cy = H / 2, N = Math.round(Math.min(420, (W * H) / 4200));
     const stars = Array.from({ length: N }, () => ({ a: Math.random() * Math.PI * 2, r: Math.random() * 40 + 4, v: Math.random() * 0.6 + 0.6,
       hue: Math.random() < 0.18 ? 46 : 190, w: Math.random() * 1.6 + 0.6 }));
-    const t0 = performance.now(); let raf = 0;
+    // progress follows frame time capped at 60 ms, so a slow first frame (heavy GPU upload) cannot skip the effect;
+    // a hard wall-clock limit keeps it from dragging on very slow devices
+    const t0 = performance.now(); let raf = 0, last = t0, el = 0;
     function frame(now) {
-      const k = Math.min(1, (now - t0) / duration);                      // 0..1
+      el += Math.min(60, now - last); last = now;
+      const k = (now - t0 > duration * 2.5) ? 1 : Math.min(1, el / duration);   // 0..1
       const speed = k < 0.75 ? 0.15 + k * 2.2 : 1.8 * (1 - (k - 0.75) * 2.4);
       g.fillStyle = `rgba(4,10,18,${k < 0.12 ? 0.25 : 0.32})`; g.fillRect(0, 0, W, H);
       const maxR = Math.hypot(W, H) * 0.62;
