@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './OrbitControls.js';
 import { AgentSession } from './voice-session.js';
+import { initSelect } from './select.js';
 import { resolveQuality, dprCap, stepDpr, shouldRenderWhileHidden, labelOpacityCss } from './render-quality.js';
 
 /* =========================================================
@@ -269,6 +270,24 @@ async function buildKazakhstan() {
    ========================================================= */
 const books = [];
 let PERSONS = [];
+
+// Contemporary people (1950–2026) are read from modern.json. They have no 3D book on the map; they open from the
+// character-select screen / list. They are AI-guide personas: third person, never "I am <real person>".
+let MODERN = [];
+const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // library voices already used here — NOT clones of real people
+const allPeople = () => MODERN.concat(PERSONS);
+const imgOf = (p) => p.img || `img/${p.id}.jpg`;
+const hiOf = (p) => p.img_hi || (p.modern ? `img_hi/${p.id}.jpg` : imgOf(p));
+async function loadModern() {
+  try {
+    const r = await fetch('modern.json', { cache: 'no-cache' }); if (!r.ok) return;
+    const list = await r.json(); if (!Array.isArray(list)) return;
+    MODERN = list.filter((p) => p && p.id && p.name && p.mouth).map((p) => ({
+      ...p, modern: true, lang: p.lang === 'ru' ? 'ru' : 'kk', years: p.years || '', region: p.region || '',
+      voice: p.voice || (p.female ? GUIDE_VOICE.female : GUIDE_VOICE.male), speed: p.speed || 1,
+    }));
+  } catch (e) { console.warn('modern.json not loaded', e); }
+}
 function wrapText(g, text, maxW) {
   const words = text.split(' '); const lines = []; let line = '';
   for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
@@ -562,21 +581,34 @@ function closePanel() { panel.classList.remove('open'); }
 $('list-toggle').addEventListener('click', () => panel.classList.toggle('open'));
 function renderList(filter = '') {
   const f = filter.trim().toLowerCase(), groups = {};
-  PERSONS.forEach((p) => { if (f && !(p.name + ' ' + p.name_ru + ' ' + p.region).toLowerCase().includes(f)) return; const g = p.region.split(',')[0].trim(); (groups[g] = groups[g] || []).push(p); });
+  allPeople().forEach((p) => { if (f && !(p.name + ' ' + p.name_ru + ' ' + (p.region || '')).toLowerCase().includes(f)) return; const g = (p.region || '—').split(',')[0].trim(); (groups[g] = groups[g] || []).push(p); });
   const list = $('list'); list.innerHTML = '';
   Object.keys(groups).sort((a, b) => a.localeCompare(b, 'kk')).forEach((g) => {
     const h = document.createElement('div'); h.className = 'grp'; h.textContent = g; list.appendChild(h);
     groups[g].forEach((p) => {
       const b = document.createElement('button'); b.className = 'item';
       b.innerHTML = '<img alt="" loading="lazy"><div><div class="n"></div><div class="y"></div></div>';
-      b.querySelector('img').src = `img/${p.id}.jpg`; b.querySelector('.n').textContent = p.name; b.querySelector('.y').textContent = `${p.years} · ${p.region}`;
-      b.addEventListener('click', () => focusBook(books.find((x) => x.p.id === p.id)));
+      b.querySelector('img').src = imgOf(p); b.querySelector('.n').textContent = p.name; b.querySelector('.y').textContent = `${p.years} · ${p.region}`;
+      b.addEventListener('click', () => pickPerson(p));
       list.appendChild(b);
     });
   });
   if (!list.children.length) list.innerHTML = '<div class="grp" style="text-transform:none;letter-spacing:0">Ештеңе табылмады</div>';
 }
 $('search').addEventListener('input', (e) => { renderList(e.target.value); panel.classList.add('open'); });
+
+// Historical figures fly the camera to their 3D book; contemporaries open directly (no map book).
+function pickPerson(p) {
+  const b = books.find((x) => x.p.id === p.id);
+  if (b) { focusBook(b); return; }
+  tip.style.opacity = 0; hovered = null; closePanel(); openBook(p);
+}
+let selecting = false;
+const selectUI = initSelect({
+  getPeople: allPeople, imgOf, hiOf, getUiLang: () => lang, onPick: pickPerson,
+  onOpen: () => { selecting = true; closePanel(); }, onClose: () => { selecting = false; dirty = true; },
+});
+$('select-btn').addEventListener('click', () => selectUI.open());
 
 /* =========================================================
    Book + ElevenLabs live conversation
@@ -592,7 +624,27 @@ function addMsg(role, text) {
 const nameFor = (p) => (lang === 'ru' ? p.name_ru : p.name);
 function setStatus(t) { statusEl.textContent = t || ''; }
 
+const greetOf = (p) => !p.modern ? p.greet : (lang === 'ru'
+  ? `Здравствуйте! Я ИИ-гид. Расскажу о ${p.name_ru}${p.field_ru ? ' — ' + p.field_ru : ''}. Что вам интересно?`
+  : `Сәлем! Мен — жасанды интеллект гидімін. ${p.name}${p.field_kk ? ' — ' + p.field_kk : ''} туралы айтып беремін. Не білгіңіз келеді?`);
+
+// Contemporaries: the model is a guide ABOUT the person, never the person (no impersonation / invented quotes).
+function buildGuidePrompt(p) {
+  const ru = lang === 'ru', living = p.living !== false;
+  const facts = (ru ? (p.bio_ru || p.bio) : p.bio) || '', role = (ru ? p.field_ru : p.field_kk) || '', name = ru ? p.name_ru : p.name;
+  const hist = (histories[p.id] || []).slice(-10).map((m) => `${m.role === 'user' ? (ru ? 'Пользователь' : 'Қолданушы') : 'Гид'}: ${m.content}`).join('\n');
+  if (ru) return `Ты — ИИ-гид сайта «Казахстан: мир великих личностей». Ты НЕ ${name} (${p.years}, ${role}) и не говоришь от его/её лица: о человеке рассказываешь только в третьем лице. Никогда не говори «я — ${name}». Если спросят, прямо скажи, что ты ИИ-гид, а голос не принадлежит реальному человеку.
+Проверенные факты: ${facts}
+Называй только общеизвестные, проверенные факты. Если не знаешь или не уверен — скажи «точно не знаю»; не выдумывай даты, результаты, цифры и цитаты и не приписывай человеку слов, которых он не говорил. ${living ? 'Это живой человек: не обсуждай личную жизнь, здоровье, семью, политику и скандалы, не строй догадок; на такие вопросы вежливо возвращай разговор к достижениям.' : 'Не строй догадок о семье и личной жизни ушедшего человека.'}
+Ответ короткий: 1–3 предложения, в первом сразу ответ на вопрос. Без списков и эмодзи. Говори только по-русски.${hist ? '\n\nПредыдущий разговор:\n' + hist : ''}`;
+  return `Сен — «Қазақстан: ұлы тұлғалар әлемі» сайтының жасанды интеллект (AI) гидісің. Сен ${name} (${p.years}, ${role}) емессің және оның атынан сөйлемейсің: ол туралы тек үшінші жақта айтасың. «Мен — ${name}» деп ешқашан айтпа. Сұраса, ашық айт: сен AI-гидсің, дауысың нақты адамның дауысы емес.
+Расталған деректер: ${facts}
+Тек жалпыға белгілі, расталған фактілерді айт. Білмесең немесе сенімсіз болсаң — «Нақты білмеймін» де; жылдарды, нәтижелерді, сандарды, дәйексөздерді ойдан шығарма және оған айтпаған сөзді тақпа. ${living ? 'Бұл тірі адам: жеке өмірі, денсаулығы, отбасы, саясат пен дау-дамай туралы әңгімелеме, болжам айтпа; мұндай сұраққа сыпайы түрде оның еңбегі мен жетістіктеріне оралт.' : 'Қайтыс болған адамның отбасы мен жеке өмірі туралы болжам айтпа.'}
+Жауап қысқа: 1–3 сөйлем, бірінші сөйлемде сұраққа тікелей жауап бер. Тізім мен эмодзи қолданба. Тек қазақ тілінде сөйле.${hist ? '\n\nАлдыңғы әңгіме:\n' + hist : ''}`;
+}
+
 function buildPrompt(p) {
+  if (p.modern) return buildGuidePrompt(p);
   const rule = lang === 'kk' ? 'Тек қазақ тілінде сөйле.' : 'Говори только по-русски; можно вставлять казахские обращения (балам, шырағым).';
   const hist = (histories[p.id] || []).slice(-10).map((m) => `${m.role === 'user' ? 'Ұрпақ' : 'Сен'}: ${m.content}`).join('\n');
   return `Сен — ${p.name} (${p.years}), ${p.region} өңірімен байланысты тарихи тұлға. Өмірбаяның қысқаша: ${p.bio}
@@ -816,7 +868,7 @@ const avatar = (() => {
   function load(p) {
     ready = false; mouth = p.mouth;
     const img = new Image(); img.onload = () => { gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); ready = true; };
-    img.src = `img/${p.id}.jpg`;
+    img.src = imgOf(p);
   }
   function frame(now) {
     requestAnimationFrame(frame);
@@ -848,18 +900,33 @@ const avatar = (() => {
 
 function openBook(p) {
   current = p; bookOpen = true; document.body.classList.add('reading');
-  $('cover-img').src = $('left-img').src = `img/${p.id}.jpg`;
+  if (p.modern) setLangUI(p.lang);                       // each person opens in the language they are known for
+  $('cover-img').src = imgOf(p);
+  const bigScreen = Math.max(innerWidth, innerHeight) * (devicePixelRatio || 1) >= 2400, leftImg = $('left-img');
+  leftImg.onerror = () => { leftImg.onerror = null; leftImg.src = imgOf(p); };
+  leftImg.src = bigScreen ? hiOf(p) : imgOf(p);
   avatar.load(p);
+  const cr = document.querySelector('.credit-small');           // CC BY / CC BY-SA need the author named next to the photo
+  if (cr) cr.textContent = p.modern && p.photo
+    ? `Сурет: ${p.photo.author}, ${p.photo.license} (Wikimedia Commons) · Дауыс: жасанды, ElevenLabs`
+    : 'Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs';
   $('cover-name').textContent = p.name; $('cover-years').textContent = p.years;
   $('left-name').textContent = nameFor(p); $('talk-name').textContent = nameFor(p);
   $('left-years').textContent = p.years; $('left-region').textContent = p.region; $('left-bio').textContent = p.bio;
   let mh = $('page-right').querySelector('.mobile-head');
   if (!mh) { mh = document.createElement('div'); mh.className = 'mobile-head'; $('page-right').insertBefore(mh, $('page-right').querySelector('.talk-head')); }
   mh.innerHTML = '<img alt=""><div><div class="n"></div><div class="y"></div><div class="b"></div></div>';
-  mh.querySelector('img').src = `img/${p.id}.jpg`; mh.querySelector('.n').textContent = p.name;
+  mh.querySelector('img').src = imgOf(p); mh.querySelector('.n').textContent = p.name;
   mh.querySelector('.y').textContent = `${p.years} · ${p.region}`; mh.querySelector('.b').textContent = p.bio;
   log.innerHTML = ''; typingEl = null;
-  if (!histories[p.id]) histories[p.id] = [{ role: 'assistant', content: p.greet }];
+  let note = $('ai-note');
+  if (p.modern) {
+    if (!note) { note = document.createElement('div'); note.id = 'ai-note'; log.parentNode.insertBefore(note, log); }
+    note.textContent = lang === 'ru'
+      ? 'ИИ-гид: рассказывает о человеке в третьем лице. Голос синтезирован и не принадлежит реальному человеку; ответы могут содержать ошибки.'
+      : 'AI-гид: тұлға туралы үшінші жақтан айтады. Дауыс жасанды және нақты адамның дауысы емес; жауаптарда қателік болуы мүмкін.';
+  } else if (note) note.remove();
+  if (!histories[p.id]) histories[p.id] = [{ role: 'assistant', content: greetOf(p) }];
   histories[p.id].forEach((m) => addMsg(m.role, m.content));
   setStatus(lang === 'ru' ? 'Нажмите «Говорить голосом», чтобы начать живой разговор' : '«Дауыспен сөйлесу» батырмасын басып, тірідей сөйлесіңіз');
   $('newtab-btn').hidden = !IN_IFRAME;
@@ -882,6 +949,12 @@ function closeBook() {
 $('book-close').addEventListener('click', closeBook);
 overlay.addEventListener('click', (e) => { if (e.target === overlay) closeBook(); });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bookOpen) closeBook(); });
+function setLangUI(l) {
+  lang = l === 'ru' ? 'ru' : 'kk';
+  document.querySelectorAll('.lang button').forEach((x) => x.classList.toggle('on', x.dataset.lang === lang));
+  if (current) { $('left-name').textContent = nameFor(current); $('talk-name').textContent = nameFor(current); }
+  $('text-input').placeholder = lang === 'ru' ? 'Или напишите вопрос…' : 'Немесе жазып сұраңыз…';
+}
 document.querySelectorAll('.lang button').forEach((b) => b.addEventListener('click', () => {
   if (lang === b.dataset.lang) return;
   lang = b.dataset.lang;
@@ -915,7 +988,7 @@ document.addEventListener('visibilitychange', () => {
 function animate() {
   if (!shouldRenderWhileHidden(pageHidden || document.hidden)) return;
   const dt = clock.getDelta();
-  if (bookOpen && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
+  if ((bookOpen || selecting) && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
   if (frozen) { frozen = false; dirty = true; }
   let active = false;
   if (flight) {
@@ -964,7 +1037,7 @@ window.addEventListener('resize', () => {
   try {
     await buildKazakhstan();
     await Promise.all([buildGlobe(), buildBooks(), buildCities()]);
-    renderList(); $('count').textContent = PERSONS.length;
+    await loadModern(); renderList(); $('count').textContent = allPeople().length;
     const gv = globeView(4.6);
     camera.position.copy(gv.pos); controls.target.copy(gv.target); setMode('globe');
     renderer.compile(scene, camera);
