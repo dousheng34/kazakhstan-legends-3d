@@ -275,10 +275,17 @@ let PERSONS = [];
 // character-select screen / list. They are AI-guide personas: third person, never "I am <real person>".
 let MODERN = [];
 const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // library voices already used here — NOT clones of real people
-const allPeople = () => MODERN.concat(PERSONS);
+// The 23 historical figures are hidden by default (data and code are kept): switch on from the select screen, or add ?classic
+const HIST_ON = (() => { try { return localStorage.getItem('kz_hist') === '1'; } catch (e) { return false; } })() || /[?&]classic\b/.test(location.search);
+const allPeople = () => MODERN.concat(HIST_ON ? PERSONS : []);
+function latLonToPx(lat, lon) {                                   // inverse of pxLat/pxLon (web-mercator tile grid used by the map)
+  const n = 2 ** META.z, x = (lon + 180) / 360 * n, y = (1 - Math.log(Math.tan(lat * DEG) + 1 / Math.cos(lat * DEG)) / Math.PI) / 2 * n;
+  return [x * 256 - META.gx0, y * 256 - META.gy0];
+}
 const imgOf = (p) => p.img || `img/${p.id}.jpg`;
 const hiOf = (p) => p.img_hi || (p.modern ? `img_hi/${p.id}.jpg` : imgOf(p));
 async function loadModern() {
+  if (MODERN.length) return;
   try {
     const r = await fetch('modern.json', { cache: 'no-cache' }); if (!r.ok) return;
     const list = await r.json(); if (!Array.isArray(list)) return;
@@ -286,6 +293,9 @@ async function loadModern() {
       ...p, modern: true, lang: p.lang === 'ru' ? 'ru' : 'kk', years: p.years || '', region: p.region || '',
       voice: p.voice || (p.female ? GUIDE_VOICE.female : GUIDE_VOICE.male), speed: p.speed || 1,
     }));
+    MODERN.forEach((p) => {                                        // map position from lat/lon (needs META, i.e. after buildKazakhstan)
+      if (Array.isArray(p.geo) && typeof META !== 'undefined' && META) { [p.px, p.py] = latLonToPx(p.geo[0], p.geo[1]); p.h = heightAtPx(p.px, p.py); }
+    });
   } catch (e) { console.warn('modern.json not loaded', e); }
 }
 function wrapText(g, text, maxW) {
@@ -322,6 +332,10 @@ function coverTexture(p, img) {
   lines.forEach((l) => { g.fillText(l, W / 2, y); y += 54; });
   g.fillStyle = '#cfe9f0'; g.font = '400 28px "PT Sans", system-ui, sans-serif';
   g.fillText(p.years, W / 2, y + 6);
+  if (p.modern) {                                                  // AI-guide marker, so nobody takes the cover for the person speaking
+    g.fillStyle = 'rgba(0,167,196,.95)'; rrect(g, fx + fw - 92, fy + 12, 80, 30, 6); g.fill();
+    g.fillStyle = '#00222a'; g.font = '700 18px "PT Sans", system-ui, sans-serif'; g.textAlign = 'center'; g.fillText('AI-ГИД', fx + fw - 52, fy + 33);
+  }
   g.restore();
   const sm = document.createElement('canvas'); sm.width = 320; sm.height = Math.round(320 * H / W);
   sm.getContext('2d').drawImage(c, 0, 0, sm.width, sm.height);
@@ -336,11 +350,13 @@ function softRectTexture(color, blur) {
 
 async function buildBooks() {
   PERSONS = await getJSON('persons.json');
+  await loadModern();
+  const bookPeople = MODERN.filter((p) => p.px != null).concat(HIST_ON ? PERSONS : []);
   try { await Promise.all([document.fonts.load('700 50px "PT Serif"'), document.fonts.load('400 28px "PT Sans"')]); } catch (e) {}
-  const imgs = await Promise.all(PERSONS.map((p) => loadImg(`img/${p.id}.jpg`)));
+  const imgs = await Promise.all(bookPeople.map((p) => loadImg(imgOf(p))));
 
   // relax overlapping books in map-pixel space (axis-aligned footprints)
-  const items = PERSONS.map((p) => {
+  const items = bookPeople.map((p) => {
     const upp = 0.0806 * (R / 420) * Math.cos(pxLat(p.py) * DEG);   // scene units per map pixel
     return { p, x: p.px, y: p.py, ox: p.px, oy: p.py, hw: (BOOK_W / upp) / 2 + 8, hh: (BOOK_H / upp) / 2 + 8 };
   });
@@ -605,7 +621,8 @@ function pickPerson(p) {
 }
 let selecting = false;
 const selectUI = initSelect({
-  getPeople: allPeople, imgOf, hiOf, getUiLang: () => lang, onPick: pickPerson,
+  getPeople: allPeople, imgOf, hiOf, getUiLang: () => lang, onPick: pickPerson, historyOn: HIST_ON,
+  onToggleHistory: () => { try { localStorage.setItem('kz_hist', HIST_ON ? '0' : '1'); } catch (e) {} location.reload(); },
   onOpen: () => { selecting = true; closePanel(); }, onClose: () => { selecting = false; dirty = true; },
 });
 $('select-btn').addEventListener('click', () => selectUI.open());
@@ -616,7 +633,7 @@ $('select-btn').addEventListener('click', () => selectUI.open());
 let bookOpen = false, current = null, lang = 'kk';
 const histories = {};
 const overlay = $('book-overlay'), cover = $('cover'), log = $('chat-log'), statusEl = $('status'), wave = $('wave');
-const cleanText = (t) => (t || '').replace(/\[[^\]]{1,40}\]\s*/g, '').trim();
+const cleanText = (t) => (t || '').replace(/<\/?[a-z_]{1,32}>\s*/gi, '').replace(/\[[^\]]{1,40}\]\s*/g, '').trim();
 function addMsg(role, text) {
   const d = document.createElement('div'); d.className = `msg ${role === 'user' ? 'u' : 'a'}`; d.textContent = text;
   log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
@@ -1038,6 +1055,7 @@ window.addEventListener('resize', () => {
     await buildKazakhstan();
     await Promise.all([buildGlobe(), buildBooks(), buildCities()]);
     await loadModern(); renderList(); $('count').textContent = allPeople().length;
+    if (/[?&]debug\b/.test(location.search)) window.__kz = { books, people: allPeople };
     const gv = globeView(4.6);
     camera.position.copy(gv.pos); controls.target.copy(gv.target); setMode('globe');
     renderer.compile(scene, camera);
