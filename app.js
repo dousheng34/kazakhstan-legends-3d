@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './OrbitControls.js';
+import { AgentSession } from './voice-session.js';
+import { resolveQuality, dprCap, stepDpr, shouldRenderWhileHidden, labelOpacityCss } from './render-quality.js';
 
 /* =========================================================
    Config
@@ -12,9 +14,10 @@ let GPU = '';
 try { const ext = probe && probe.getExtension('WEBGL_debug_renderer_info'); GPU = probe ? String(probe.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : probe.RENDERER)) : ''; } catch (e) {}
 const WEAK_GPU = /Intel|UHD|Iris|HD Graphics|Mali|Adreno|PowerVR|SwiftShader|llvmpipe|Microsoft Basic/i.test(GPU);
 let savedQ = null; try { savedQ = localStorage.getItem('kz_quality'); } catch (e) {}
-const QUALITY = savedQ || ((isMobile || WEAK_GPU || maxTex < 8192 || (navigator.hardwareConcurrency || 8) <= 4) ? 'medium' : 'high');
+const QUALITY = resolveQuality(savedQ, { isMobile, weakGpu: WEAK_GPU, maxTex, cores: navigator.hardwareConcurrency || 8 });
 const LOW = QUALITY !== 'high';
-const DPR_MAX = Math.min(window.devicePixelRatio || 1, LOW ? 1 : 1.5);
+let DPR_MAX = dprCap(window.devicePixelRatio || 1, QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+probe?.getExtension('WEBGL_lose_context')?.loseContext();
 
 const R = 420;                         // globe radius (scene units)
 const EXAG = 15;                       // vertical exaggeration of Kazakhstan relief
@@ -66,10 +69,24 @@ manager.onProgress = (_u, l, t) => { texDone = l; texTotal = t; updateProgress()
 const texLoader = new THREE.TextureLoader(manager);
 const maxAniso = renderer.capabilities.getMaxAnisotropy();
 const ALL_TEX = [];
-const loadTex = (url, srgb = true) => texLoader.loadAsync(url).then((t) => { if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, maxAniso); ALL_TEX.push(t); return t; });
+const loadTex = (url, srgb = true) => texLoader.loadAsync(url).then((t) => {
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = Math.min(LOW ? 4 : 8, maxAniso);
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  ALL_TEX.push(t);
+  return t;
+});
 function getJSON(url) { extraTotal++; updateProgress(); return fetch(url).then((r) => r.json()).then((j) => { extraDone++; updateProgress(); return j; }); }
 function loadImg(url) { extraTotal++; return new Promise((res, rej) => { const i = new Image(); i.onload = () => { extraDone++; updateProgress(); res(i); }; i.onerror = rej; i.src = url; }); }
-function canvasTex(c, srgb = true) { const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = Math.min(8, maxAniso); ALL_TEX.push(t); return t; }
+function canvasTex(c, srgb = true) {
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = Math.min(LOW ? 4 : 8, maxAniso);
+  ALL_TEX.push(t);
+  return t;
+}
 
 /* =========================================================
    Sphere math (matches THREE.SphereGeometry UV layout)
@@ -396,8 +413,13 @@ function updateLabels() {
     if (tmpv.dot(c.nrm) < 0.08 || d < 12) o = 0;
     if (o > 0.01) { proj.copy(c.pos).project(camera); if (proj.z > 1) o = 0; }
     if (o <= 0.01) { if (c.vis) { c.el.style.opacity = '0'; c.vis = false; } continue; }
-    c.vis = true; c.el.style.opacity = o.toFixed(2);
-    c.el.style.transform = `translate3d(${((proj.x + 1) / 2 * W).toFixed(1)}px, ${((1 - proj.y) / 2 * H).toFixed(1)}px, 0) translate(-4px, -50%)`;
+    const opCss = labelOpacityCss(o);
+    const tx = ((proj.x + 1) / 2 * W).toFixed(1);
+    const ty = ((1 - proj.y) / 2 * H).toFixed(1);
+    const xf = `translate3d(${tx}px, ${ty}px, 0) translate(-4px, -50%)`;
+    c.vis = true;
+    if (c._op !== opCss) { c.el.style.opacity = opCss; c._op = opCss; }
+    if (c._xf !== xf) { c.el.style.transform = xf; c._xf = xf; }
   }
 }
 
@@ -528,7 +550,12 @@ document.querySelectorAll('#nav button').forEach((btn) => btn.addEventListener('
 }));
 
 $('q-btn').textContent = LOW ? 'SD' : 'HD';
-$('q-btn').addEventListener('click', () => { try { localStorage.setItem('kz_quality', LOW ? 'high' : 'medium'); } catch (e) {} location.reload(); });
+$('q-btn').title = LOW ? 'Performance mode / Өнімділік режимі' : 'Adaptive high quality, up to 4K / 4K дейін';
+$('q-btn').addEventListener('click', () => {
+  const next = LOW ? 'high' : 'medium';
+  try { localStorage.setItem('kz_quality', next); } catch (e) {}
+  location.reload();
+});
 
 const panel = $('panel');
 function closePanel() { panel.classList.remove('open'); }
@@ -572,311 +599,134 @@ function buildPrompt(p) {
 Сен тірі ${p.name} сияқты сөйлейсің: өз мінезіңмен, өз дәуіріңнің сөзімен, өз өмір тәжірибеңмен, бірінші жақпен ("мен"). Бейнеден шықпа, өзіңді ассистент, модель, бот деп атама. Тек адам шын ниетпен "сен ЖИ-сің бе?" деп сұраса ғана, бұл тарихи бейненің қайта жаңғыртылған дауысы екенін бір сөйлеммен мойында да, әңгімені сол бейнеде жалғастыр.
 Сенімен 2026 жылы өмір сүріп жатқан қазақ ұрпағы тірідей, дауыспен сөйлесіп отыр. Жылы, бірақ шыншыл бол: қалай өмір сүру керектігін айт, ақыл бер, ұрпақтың сенің өсиетіңді орындамай жүрген тұстарын әдеппен, бірақ ашық сына.
 Өз шығармаларың мен өміріңнен тек нақты білетін деректерді айт; сенімді болмасаң дәйексөзді ойдан шығарма. Өзің қайтыс болғаннан кейінгі оқиғалар туралы сұраса — таңғала, өз көзқарасыңнан баға бер.
-Жауап қысқа болсын: 2–4 сөйлем, ауызша айтуға ыңғайлы. Тізім, эмодзи қолданба. Әңгімені жалғастыру үшін кейде өзің де сұрақ қой.
+Жауап қысқа болсын: әдетте 1–3 сөйлем, ауызша айтуға ыңғайлы. Бірінші сөйлемде сұраққа тікелей жауап бер; сұрақты қайталап оқыма және әр жауапта қайта амандаспа. Толығырақ түсіндіруді сұраса ғана кеңейт. Тізім, эмодзи қолданба. Әңгімені жалғастыру үшін кейде өзің де сұрақ қой.
 Зиянды не қауіпті нәрсе сұраса — өз мінезіңде қалып, ақылмен бас тарт.
 ${rule}${hist ? '\n\nОсыған дейінгі әңгімелерің:\n' + hist : ''}`;
 }
 
-let session = null, sessionKind = null, connecting = false, pendingText = null;
+let session = null, sessionKind = null, connecting = false, pendingTexts = [], sessionEpoch = 0;
 
 /* ---- Minimal ElevenLabs Agents client (WebSocket protocol) ----
    • audio replies are played for BOTH typed and spoken questions
    • microphone is only requested in voice mode                     */
-const b64ToBytes = (b64) => { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
-const bytesToB64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 let sharedCtx = null;
 function audioCtx() {
   if (!sharedCtx) sharedCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (sharedCtx.state === 'suspended') sharedCtx.resume();
   return sharedCtx;
 }
-class AgentSession {
-  constructor(opts) { this.o = opts; this.sources = []; this.playHead = 0; this.outRate = 16000; this.inRate = 16000; this.micLevel = 0; this.closed = false; this.mode = 'listening'; }
-  async start(withMic) {
-    const ctx = this.ctx = audioCtx();
-    this.out = ctx.createGain(); this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 1024;
-    this.out.connect(this.analyser); this.analyser.connect(ctx.destination);
-    this.buf = new Uint8Array(this.analyser.fftSize);
-    if (withMic) {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    }
-    await new Promise((resolve, reject) => {
-      const ws = this.ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
-      let ok = false;
-      ws.onopen = () => { ws.send(JSON.stringify({ type: 'conversation_initiation_client_data', conversation_config_override: this.o.override })); };
-      ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
-        if (m.type === 'conversation_initiation_metadata') {
-          const md = m.conversation_initiation_metadata_event || {};
-          const of = /pcm_(\d+)/.exec(md.agent_output_audio_format || ''); if (of) this.outRate = +of[1];
-          const inf = /pcm_(\d+)/.exec(md.user_input_audio_format || ''); if (inf) this.inRate = +inf[1];
-          ok = true; resolve();
-        }
-        this.handle(m);
-      };
-      ws.onerror = () => { if (!ok) reject(new Error('WebSocket')); };
-      ws.onclose = (e) => { if (!ok) reject(new Error(e.reason || 'closed')); else this.finish(); };
-    });
-    if (withMic) await this.startMic();
-    this.tick();
-  }
-  async startMic() {
-    const ctx = this.ctx;
-    const src = `class Cap extends AudioWorkletProcessor { process(i){ const c = i[0] && i[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; } } registerProcessor('cap-proc', Cap);`;
-    if (!ctx.__capReady) { await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src], { type: 'application/javascript' }))); ctx.__capReady = true; }
-    this.micSrc = ctx.createMediaStreamSource(this.stream);
-    this.node = new AudioWorkletNode(ctx, 'cap-proc');
-    const mute = ctx.createGain(); mute.gain.value = 0;
-    this.micSrc.connect(this.node); this.node.connect(mute); mute.connect(ctx.destination);
-    const ratio = ctx.sampleRate / this.inRate; let acc = []; let pos = 0;
-    this.node.port.onmessage = (e) => {
-      const x = e.data; let sum = 0;
-      for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
-      this.micLevel = Math.sqrt(sum / x.length);
-      // downsample (box filter) to the agent's input rate
-      while (pos < x.length) { const i0 = Math.floor(pos), i1 = Math.min(x.length, Math.floor(pos + ratio)); let s = 0, n = 0; for (let i = i0; i < i1; i++) { s += x[i]; n++; } acc.push(n ? s / n : x[i0]); pos += ratio; }
-      pos -= x.length;
-      if (acc.length >= this.inRate / 8) {                        // ~125 ms chunks
-        const pcm = new Int16Array(acc.length); for (let i = 0; i < acc.length; i++) pcm[i] = Math.max(-1, Math.min(1, acc[i])) * 0x7fff;
-        acc = [];
-        if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ user_audio_chunk: bytesToB64(new Uint8Array(pcm.buffer)) }));
-      }
-    };
-  }
-  handle(m) {
-    switch (m.type) {
-      case 'audio': { const ev = m.audio_event || {}; if (ev.audio_base_64) this.play(ev.audio_base_64); break; }
-      case 'agent_response': this.o.onMessage && this.o.onMessage({ source: 'ai', message: (m.agent_response_event || {}).agent_response }); break;
-      case 'user_transcript': this.o.onMessage && this.o.onMessage({ source: 'user', message: (m.user_transcription_event || {}).user_transcript }); break;
-      case 'interruption': this.stopAudio(); break;
-      case 'ping': { const p = m.ping_event || {}; setTimeout(() => { try { this.ws.send(JSON.stringify({ type: 'pong', event_id: p.event_id })); } catch (e) {} }, p.ping_ms || 0); break; }
-      default: break;
-    }
-  }
-  play(b64) {
-    const ctx = this.ctx, u8 = b64ToBytes(b64);
-    const pcm = new Int16Array(u8.buffer, 0, u8.length >> 1);
-    if (!pcm.length) return;
-    const buf = ctx.createBuffer(1, pcm.length, this.outRate), ch = buf.getChannelData(0);
-    for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 0x8000;
-    const s = ctx.createBufferSource(); s.buffer = buf; s.connect(this.out);
-    const t = Math.max(ctx.currentTime + 0.04, this.playHead);
-    s.start(t); this.playHead = t + buf.duration;
-    this.sources.push(s); s.onended = () => { this.sources = this.sources.filter((x) => x !== s); };
-  }
-  stopAudio() { this.sources.forEach((s) => { try { s.stop(); } catch (e) {} }); this.sources = []; this.playHead = 0; }
-  tick() {
-    if (this.closed) return;
-    const speaking = this.playHead > this.ctx.currentTime + 0.02;
-    const md = speaking ? 'speaking' : 'listening';
-    if (md !== this.mode) { this.mode = md; this.o.onModeChange && this.o.onModeChange({ mode: md }); }
-    requestAnimationFrame(() => this.tick());
-  }
-  getOutputVolume() {
-    if (!this.analyser) return 0;
-    this.analyser.getByteTimeDomainData(this.buf); let s = 0;
-    for (let i = 0; i < this.buf.length; i++) { const v = (this.buf[i] - 128) / 128; s += v * v; }
-    return Math.sqrt(s / this.buf.length);
-  }
-  getInputVolume() { return this.micLevel; }
-  sendUserMessage(text) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify({ type: 'user_message', text })); }
-  finish() { if (this.closed) return; this.closed = true; this.o.onDisconnect && this.o.onDisconnect(); }
-  async endSession() {
-    this.closed = true; this.stopAudio();
-    try { this.node && this.node.disconnect(); this.micSrc && this.micSrc.disconnect(); } catch (e) {}
-    try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
-    try { this.ws && this.ws.close(); } catch (e) {}
-  }
-}
-
-
-/* =========================================================
-   Gemini speech recognition (browser mic → Gemini → text → ElevenLabs voice)
-   ========================================================= */
-// The key is never stored in the repo: open the site once with #gk=YOUR_KEY (or use the "Gemini" link)
-// and it is kept only in this browser's localStorage.
-let GEMINI_KEY = '';
-(() => {
-  try {
-    const m = /[#&]gk=([^&]+)/.exec(location.hash);
-    if (m) { localStorage.setItem('kz_gemini_key', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname + location.search); }
-    GEMINI_KEY = localStorage.getItem('kz_gemini_key') || '';
-  } catch (e) {}
-})();
-const STT_MODELS = ['gemini-3.5-transcribe', 'gemini-3.5-flash'];
-function wavB64(f32, rate) {
-  const n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
-  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
-  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, f32[i])) * 0x7fff, true);
-  return bytesToB64(new Uint8Array(buf));
-}
-async function geminiTranscribe(f32, rate, p) {
-  const names = PERSONS.map((x) => x.name).join(', ');
-  const prompt = (lang === 'ru'
-    ? 'В аудио человек говорит по-русски (возможны казахские слова). Запиши сказанное дословно. Верни только текст, без пояснений. Если речи нет — верни пустую строку.'
-    : 'Бұл аудиода адам қазақ тілінде сөйлейді (кейде орыс сөздері араласуы мүмкін). Айтылған сөзді сөзбе-сөз, қазақ кириллицасымен дәл жаз (ә, ғ, қ, ң, ө, ұ, ү, һ, і әріптерін дұрыс қолдан). Тек айтылған мәтінді қайтар — түсіндірме, тырнақша, аударма қоспа. Сөз естілмесе, бос жол қайтар.')
-    + ` Әңгімелесуші: ${p.name}. Кездесуі мүмкін есімдер: ${names}.`;
-  const body = { contents: [{ parts: [{ inline_data: { mime_type: 'audio/wav', data: wavB64(f32, rate) } }, { text: prompt }] }], generationConfig: { temperature: 0 } };
-  let lastErr = null;
-  for (const model of STT_MODELS) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY }, body: JSON.stringify(body) });
-      if (!r.ok) { lastErr = new Error('Gemini ' + r.status); continue; }
-      const j = await r.json();
-      const parts = (((j.candidates || [])[0] || {}).content || {}).parts || [];
-      const txt = parts.map((x) => (x.audioTranscription && x.audioTranscription.text) || x.text || '').join(' ').trim();
-      return txt.replace(/^["«“]+|["»”]+$/g, '').trim();
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error('Gemini');
-}
-class GeminiListener {
-  constructor(opts) { this.o = opts; this.level = 0; this.state = 'idle'; this.closed = false; }
-  async start() {
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-    const src = `class Cap extends AudioWorkletProcessor { process(i){ const c = i[0] && i[0][0]; if (c) this.port.postMessage(c.slice(0)); return true; } } registerProcessor('cap-proc', Cap);`;
-    const url = URL.createObjectURL(new Blob([src], { type: 'application/javascript' }));
-    try {                                                      // 16 kHz context → browser does proper resampling
-      this.ctx = new AudioContext({ sampleRate: 16000 });
-      await this.ctx.audioWorklet.addModule(url);
-      this.micSrc = this.ctx.createMediaStreamSource(this.stream);
-    } catch (e) {                                              // fallback (e.g. Firefox): native rate, resample in JS
-      try { this.ctx && this.ctx.close(); } catch (x) {}
-      this.ctx = new AudioContext(); await this.ctx.audioWorklet.addModule(url);
-      this.micSrc = this.ctx.createMediaStreamSource(this.stream);
-    }
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
-    this.rate = 16000; const ratio = this.ctx.sampleRate / 16000;
-    this.node = new AudioWorkletNode(this.ctx, 'cap-proc');
-    const mute = this.ctx.createGain(); mute.gain.value = 0;
-    this.micSrc.connect(this.node); this.node.connect(mute); mute.connect(this.ctx.destination);
-    let pos = 0, frame = [];
-    const FR = 480;                                            // 30 ms frames at 16 kHz
-    this.node.port.onmessage = (e) => {
-      const x = e.data;
-      if (ratio === 1) { for (let i = 0; i < x.length; i++) frame.push(x[i]); }
-      else { while (pos < x.length) { const i0 = Math.floor(pos), i1 = Math.min(x.length, Math.max(i0 + 1, Math.floor(pos + ratio))); let s = 0; for (let i = i0; i < i1; i++) s += x[i]; frame.push(s / (i1 - i0)); pos += ratio; } pos -= x.length; }
-      while (frame.length >= FR) { this.onFrame(Float32Array.from(frame.splice(0, FR))); }
-    };
-    this.floor = 0.004; this.pre = []; this.rec = []; this.voiced = 0; this.silent = 0; this.loud = 0;
-    this.setState('listening');
-  }
-  setState(st) { if (this.state !== st) { this.state = st; this.o.onState && this.o.onState(st); } }
-  onFrame(f) {
-    if (this.closed) return;
-    let sum = 0; for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
-    const rms = Math.sqrt(sum / f.length); this.level = rms;
-    const blocked = this.o.isBlocked && this.o.isBlocked();      // agent talking / waiting for its answer
-    if (blocked || this.state === 'busy') { this.pre = []; this.rec = []; this.voiced = this.loud = 0; if (this.state === 'recording') this.setState('listening'); return; }
-    if (this.state !== 'recording') this.floor = this.floor * 0.97 + Math.min(rms, 0.05) * 0.03;
-    const thr = Math.max(0.012, this.floor * 3.2);
-    if (this.state === 'listening') {
-      this.pre.push(f); if (this.pre.length > 12) this.pre.shift();          // 360 ms pre-roll
-      this.loud = rms > thr ? this.loud + 1 : 0;
-      if (this.loud >= 3) { this.rec = this.pre.slice(); this.pre = []; this.voiced = 3; this.silent = 0; this.setState('recording'); }
-      return;
-    }
-    // recording
-    this.rec.push(f);
-    if (rms > thr * 0.75) { this.voiced++; this.silent = 0; } else this.silent++;
-    const tooLong = this.rec.length > 30000 / 30;               // 30 s max
-    if (this.silent * 30 >= 1100 || tooLong) {                   // 1.1 s pause = end of phrase
-      const frames = this.rec, trail = this.silent; this.rec = []; this.silent = 0;
-      if (this.voiced * 30 < 300) { this.voiced = 0; this.setState('listening'); return; }   // too short → noise
-      this.voiced = 0;
-      const keep = frames.slice(0, frames.length - Math.max(0, trail - 10));   // drop most of the trailing silence
-      const n = keep.reduce((a, b) => a + b.length, 0), all = new Float32Array(n); let o = 0; keep.forEach((b) => { all.set(b, o); o += b.length; });
-      this.setState('busy');
-      this.o.onUtterance(all, this.rate).finally(() => { if (!this.closed) this.setState('listening'); });
-    }
-  }
-  stop() {
-    this.closed = true;
-    try { this.node && (this.node.port.onmessage = null); this.micSrc && this.micSrc.disconnect(); } catch (e) {}
-    try { this.stream && this.stream.getTracks().forEach((t) => t.stop()); } catch (e) {}
-    try { this.ctx && this.ctx.close(); } catch (e) {}
-  }
-}
-let listener = null;
-async function endSession() {
-  const s = session; session = null; sessionKind = null;
-  if (listener) { listener.stop(); listener = null; }
-  if (s) { try { await s.endSession(); } catch (e) {} }
+// Direct streaming STT + response + voice in one ElevenLabs session.
+// Migrate away from the old browser-stored Gemini key / serial transcription path.
+try {
+  localStorage.removeItem('kz_gemini_key');
+  if (/[#&]gk=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+} catch {}
+async function endSession({ keepPending = false } = {}) {
+  sessionEpoch++;
+  const s = session; session = null; sessionKind = null; connecting = false;
+  if (!keepPending) pendingTexts = [];
+  clearTimeout(replyTimer); typingOff();
   $('live-btn').classList.remove('on', 'connecting'); $('live-label').textContent = liveLabel();
   avatar && avatar.setTalk && avatar.setTalk(false); wave.classList.remove('on', 'listen');
+  if (s) { try { await s.endSession(); } catch {} }
 }
+window.addEventListener('pagehide', () => { endSession(); sharedCtx?.suspend(); });
 const liveLabel = () => (session && sessionKind === 'voice' ? (lang === 'ru' ? 'Завершить разговор' : 'Сөйлесуді аяқтау') : (lang === 'ru' ? 'Говорить голосом' : 'Дауыспен сөйлесу'));
 
-let awaitingReply = false, replyTimer = 0;
+// Add ?debug to the URL to show request → first-audio timings (hidden for normal visitors).
+const DEBUG_LATENCY = new URLSearchParams(location.search).has('debug');
+const latencySamples = [];
+function showLatency(kind, ms) {
+  latencySamples.push(ms); if (latencySamples.length > 20) latencySamples.shift();
+  let el = document.getElementById('latency-debug');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'latency-debug';
+    el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99;padding:6px 10px;border-radius:8px;background:rgba(0,0,0,.72);color:#fff;font:12px/1.4 monospace;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  const sorted = [...latencySamples].sort((a, b) => a - b);
+  el.textContent = `${kind}: ${ms} ms · median ${sorted[Math.floor(sorted.length / 2)]} ms · n=${sorted.length}`;
+}
+let replyTimer = 0;
+function waitForReply() {
+  typingOn(); clearTimeout(replyTimer);
+  setStatus(lang === 'ru' ? 'Готовит ответ…' : 'Жауап дайындап жатыр…');
+  const token = sessionEpoch;
+  replyTimer = setTimeout(() => {
+    if (token !== sessionEpoch) return;
+    typingOff(); setStatus(lang === 'ru' ? 'Ответ задерживается. Можно повторить вопрос или переподключиться.' : 'Жауап кешігіп жатыр. Сұрақты қайталауға не қайта қосылуға болады.');
+  }, 20000);
+}
 async function startSession(kind) {
   if (!current || connecting) return;
-  audioCtx();                                   // unlock audio inside the click
-  await endSession();
-  connecting = true; $('newtab-btn').hidden = !IN_IFRAME;
-  if (kind === 'voice') { $('live-btn').classList.add('connecting'); $('live-label').textContent = lang === 'ru' ? 'Подключение…' : 'Қосылуда…'; }
+  audioCtx();
+  const closing = endSession({ keepPending: true });
+  const token = sessionEpoch, p = current;
+  connecting = true;
+  await closing;
+  if (token !== sessionEpoch || current !== p) return;
+  $('newtab-btn').hidden = !IN_IFRAME;
+  $('live-btn').classList.toggle('connecting', kind === 'voice');
+  $('live-label').textContent = lang === 'ru' ? 'Отменить подключение' : 'Қосылуды тоқтату';
   setStatus(lang === 'ru' ? 'Подключение…' : 'Қосылып жатыр…');
-  const p = current, h = histories[p.id];
-  // typed question → no spoken greeting, answer straight away; voice → greet first
-  const first = kind !== 'voice' ? '' : (h.length <= 1 ? p.greet : (lang === 'ru' ? 'Да, я слушаю тебя, балам.' : 'Иә, балам, тыңдап отырмын.'));
-  let skipFirst = kind === 'voice' && h.length <= 1;
+  const h = histories[p.id];
+  const active = () => token === sessionEpoch && current === p;
+  let transportError = null;
   const s = new AgentSession({
+    agentId: AGENT_ID, audioContext: audioCtx,
     override: {
-      agent: { prompt: { prompt: buildPrompt(p) }, first_message: first, language: lang },
+      // Greeting stays visible in the book; do not read it before listening.
+      agent: { prompt: { prompt: buildPrompt(p) }, first_message: '', language: lang },
       tts: { voice_id: p.voice, speed: p.speed || 1 },
     },
-    onDisconnect: () => { if (session === s) { session = null; sessionKind = null; } $('live-btn').classList.remove('on', 'connecting'); $('live-label').textContent = liveLabel(); wave.classList.remove('on', 'listen'); avatar.setTalk(false); },
+    onError: error => { transportError = error; },
+    onLatency: ({ kind, ms }) => {
+      if (!active()) return;
+      console.info(`[latency] ${kind}: ${ms} ms`);
+      if (DEBUG_LATENCY) showLatency(kind, ms);
+    },
+    onDisconnect: () => {
+      if (!active()) return;
+      endSession();
+      setStatus(transportError ? (lang === 'ru' ? 'Ошибка голосовой связи. Подключитесь снова.' : 'Дауыс байланысында қате. Қайта қосылыңыз.') : (lang === 'ru' ? 'Разговор завершён.' : 'Сөйлесу аяқталды.'));
+    },
+    onInterruption: () => { if (active()) { clearTimeout(replyTimer); typingOff(); } },
     onModeChange: ({ mode: m }) => {
+      if (!active()) return;
       const speaking = m === 'speaking';
+      if (speaking) { clearTimeout(replyTimer); typingOff(); }
       avatar.setTalk(speaking);
       wave.classList.toggle('on', speaking || kind === 'voice'); wave.classList.toggle('listen', !speaking && kind === 'voice');
       setStatus(speaking ? (lang === 'ru' ? 'Говорит…' : 'Сөйлеп тұр…') : (kind === 'voice' ? (lang === 'ru' ? 'Слушает вас…' : 'Сізді тыңдап тұр…') : ''));
     },
     onMessage: ({ source, message }) => {
-      if (current !== p) return;
+      if (!active()) return;
       const txt = cleanText(message); if (!txt) return;
       if (source === 'ai') {
-        if (skipFirst) { skipFirst = false; return; }
-        typingOff(); awaitingReply = false; h.push({ role: 'assistant', content: txt }); addMsg('assistant', txt);
-      } else { h.push({ role: 'user', content: txt }); addMsg('user', txt); typingOn(); }
+        clearTimeout(replyTimer); typingOff(); h.push({ role: 'assistant', content: txt }); addMsg('assistant', txt);
+      } else { h.push({ role: 'user', content: txt }); addMsg('user', txt); waitForReply(); }
     },
   });
+  session = s; sessionKind = kind;
   try {
-    const useGemini = kind === 'voice' && !!GEMINI_KEY;
-    await s.start(kind === 'voice' && !useGemini);   // with Gemini: ElevenLabs = brain + voice, Gemini = ears
-    session = s; sessionKind = kind; connecting = false;
-    if (useGemini) {
-      const L = listener = new GeminiListener({
-        isBlocked: () => !session || session !== s || s.mode === 'speaking' || s.playHead > s.ctx.currentTime - 0.25 || awaitingReply,
-        onState: (st) => {
-          if (listener !== L || session !== s || s.mode === 'speaking') return;
-          wave.classList.toggle('listen', st !== 'busy');
-          setStatus(st === 'recording' ? (lang === 'ru' ? 'Слушаю…' : 'Тыңдап тұрмын…')
-            : st === 'busy' ? (lang === 'ru' ? 'Распознаю вашу речь…' : 'Сөзіңізді танып жатырмын…')
-            : (lang === 'ru' ? 'Говорите — я слушаю' : 'Сөйлей беріңіз — тыңдап тұрмын'));
-        },
-        onUtterance: async (pcm, rate) => {
-          try {
-            const text = await geminiTranscribe(pcm, rate, p);
-            if (!text || session !== s || current !== p) return;
-            h.push({ role: 'user', content: text }); addMsg('user', text); typingOn();
-            awaitingReply = true; clearTimeout(replyTimer); replyTimer = setTimeout(() => { awaitingReply = false; }, 15000);
-            s.sendUserMessage(text);
-          } catch (e) { console.error(e); setStatus(lang === 'ru' ? 'Не удалось распознать, повторите, пожалуйста.' : 'Сөзді тану мүмкін болмады, қайталап айтыңызшы.'); }
-        },
-      });
-      await L.start();
-    }
+    await s.start(kind === 'voice');
+    if (!active()) { await s.endSession(); return; }
+    connecting = false;
     setStatus(kind === 'voice' ? (lang === 'ru' ? 'Говорите — я слушаю' : 'Сөйлей беріңіз — тыңдап тұрмын') : '');
-    if (kind === 'voice') { $('live-btn').classList.remove('connecting'); $('live-btn').classList.add('on'); $('live-label').textContent = liveLabel(); wave.classList.add('on', 'listen'); }
-    if (pendingText) { const t = pendingText; pendingText = null; sendText(t); }
-  } catch (e) {
-    connecting = false; console.error(e); try { s.endSession(); } catch (x) {}
-    $('live-btn').classList.remove('connecting', 'on'); $('live-label').textContent = liveLabel();
-    const denied = /NotAllowed|Permission|denied|NotFound/i.test(String(e && (e.name || e.message || e)));
-    if (denied) { setStatus(lang === 'ru' ? 'Нет доступа к микрофону. Откройте сайт и разрешите микрофон (можно и писать текстом — ответ будет голосом).' : 'Микрофонға рұқсат жоқ. Сайтта ашып, микрофонға рұқсат беріңіз (жазып сұрасаңыз да, жауап дауыспен келеді).'); $('newtab-btn').hidden = false; }
-    else setStatus((lang === 'ru' ? 'Не удалось подключиться: ' : 'Қосылу мүмкін болмады: ') + (e && e.message ? e.message : e));
+    $('live-btn').classList.remove('connecting');
+    $('live-btn').classList.toggle('on', kind === 'voice'); $('live-label').textContent = liveLabel();
+    if (kind === 'voice') wave.classList.add('on', 'listen');
+    const queued = pendingTexts; pendingTexts = [];
+    queued.forEach(sendText);
+  } catch (error) {
+    await s.endSession();
+    if (!active()) return;
+    endSession();
+    if (error.name === 'AbortError') return;
+    if (/NotAllowed|Permission|Security/i.test(error.name + ' ' + error.message)) {
+      setStatus(lang === 'ru' ? 'Разрешите микрофон в браузере или напишите вопрос.' : 'Браузерде микрофонға рұқсат беріңіз немесе сұрақты жазыңыз.');
+      $('newtab-btn').hidden = !IN_IFRAME;
+    } else setStatus(lang === 'ru' ? 'Не удалось подключиться. Проверьте сеть и попробуйте снова.' : 'Қосылу мүмкін болмады. Желіні тексеріп, қайта қосылыңыз.');
   }
 }
 let typingEl = null;
@@ -884,27 +734,27 @@ function typingOn() { if (typingEl) return; typingEl = document.createElement('d
 function typingOff() { if (typingEl) { typingEl.remove(); typingEl = null; } }
 function sendText(t) {
   const p = current; if (!p) return;
-  if (!session) { pendingText = t; startSession('text'); return; }
-  histories[p.id].push({ role: 'user', content: t }); addMsg('user', t); typingOn();
-  try { session.sendUserMessage(t); } catch (e) { typingOff(); setStatus(String(e)); }
+  if (!session || connecting) {
+    if (pendingTexts.length >= 10) { setStatus(lang === 'ru' ? 'Дождитесь подключения.' : 'Қосылуды күтіңіз.'); return; }
+    pendingTexts.push(t); if (!connecting) startSession('text'); return;
+  }
+  try {
+    session.sendUserMessage(t);
+    histories[p.id].push({ role: 'user', content: t }); addMsg('user', t); waitForReply();
+  } catch { typingOff(); setStatus(lang === 'ru' ? 'Сообщение не отправлено. Переподключитесь.' : 'Хабар жіберілмеді. Қайта қосылыңыз.'); }
 }
 $('text-form').addEventListener('submit', (e) => { e.preventDefault(); audioCtx(); const v = $('text-input').value.trim(); $('text-input').value = ''; if (v) sendText(v); });
-$('live-btn').addEventListener('click', () => { if (session && sessionKind === 'voice') endSession(); else startSession('voice'); });
-$('gk-btn').addEventListener('click', () => {
-  const v = window.prompt(lang === 'ru' ? 'Ключ Gemini API (хранится только в этом браузере). Пусто — удалить.' : 'Gemini API кілті (тек осы браузерде сақталады). Бос қалдырсаңыз — өшіріледі.', GEMINI_KEY ? '••••••' : '');
-  if (v === null || v === '••••••') return;
-  GEMINI_KEY = v.trim(); try { GEMINI_KEY ? localStorage.setItem('kz_gemini_key', GEMINI_KEY) : localStorage.removeItem('kz_gemini_key'); } catch (e) {}
-  updateGkBtn();
+$('live-btn').addEventListener('click', () => {
+  if (connecting || (session && sessionKind === 'voice')) { endSession(); setStatus(lang === 'ru' ? 'Разговор остановлен.' : 'Сөйлесу тоқтатылды.'); }
+  else startSession('voice');
 });
-function updateGkBtn() { const b = $('gk-btn'); b.classList.toggle('on', !!GEMINI_KEY); b.textContent = GEMINI_KEY ? 'Gemini ✓' : 'Gemini'; b.title = GEMINI_KEY ? (lang === 'ru' ? 'Речь распознаёт Gemini' : 'Сөзді Gemini таниды') : (lang === 'ru' ? 'Подключить Gemini для распознавания речи' : 'Сөзді тану үшін Gemini қосу'); }
-updateGkBtn();
 $('newtab-btn').addEventListener('click', () => { try { window.open(SITE_URL, '_blank', 'noopener'); } catch (e) {} });
 
 // live volume meter
 const bars = [...wave.querySelectorAll('i')];
 function meter() {
   if (session && sessionKind === 'voice') {
-    let v = 0; try { v = wave.classList.contains('listen') ? (listener ? listener.level * 3 : session.getInputVolume()) : session.getOutputVolume(); } catch (e) {}
+    let v = 0; try { v = wave.classList.contains('listen') ? session.getInputVolume() : session.getOutputVolume(); } catch (e) {}
     bars.forEach((b, i) => { const k = 0.55 + 0.45 * Math.sin(performance.now() / 120 + i * 1.3); b.style.height = (4 + Math.min(1, v * 2.2) * 18 * k).toFixed(1) + 'px'; });
   }
   requestAnimationFrame(meter);
@@ -919,7 +769,7 @@ const SITE_URL = 'https://dousheng34.github.io/kazakhstan-legends-3d/';
 const IN_IFRAME = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
 const avatar = (() => {
   const cv = $('avatar');
-  const gl = cv.getContext('webgl', { premultipliedAlpha: false, alpha: true, antialias: true });
+  const gl = cv.getContext('webgl', { premultipliedAlpha: false, alpha: true, antialias: !LOW, powerPreference: 'high-performance' });
   if (!gl) return { load() {}, setTalk() {}, pulse() {} };
   const vs = 'attribute vec2 p; varying vec2 v; void main(){ v = vec2(p.x*0.5+0.5, 0.5-p.y*0.5); gl_Position = vec4(p,0.,1.); }';
   const fs = `precision mediump float;
@@ -962,7 +812,7 @@ const avatar = (() => {
   const uT = U('t'), uOp = U('op'), uHas = U('has'), uM = U('M'), uFH = U('FH');
   const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  let mouth = null, open = 0, talk = 0, fake = 0, ready = false;
+  let mouth = null, open = 0, talk = 0, fake = 0, ready = false, speakingOn = false, lastDraw = 0;
   function load(p) {
     ready = false; mouth = p.mouth;
     const img = new Image(); img.onload = () => { gl.bindTexture(gl.TEXTURE_2D, tex); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img); ready = true; };
@@ -970,6 +820,7 @@ const avatar = (() => {
   }
   function frame(now) {
     requestAnimationFrame(frame);
+    if (!shouldRenderWhileHidden(document.hidden)) return;
     if (!bookOpen || !ready) return;
     let target = 0;
     if (talk > 0) {
@@ -978,6 +829,8 @@ const avatar = (() => {
       target = Math.min(1, (vol > 0.002 ? vol * 3.2 : 0.55) * syl);
     }
     if (fake > now) { const syl = Math.abs(Math.sin(now / 80) * Math.sin(now / 210 + 0.7)); target = Math.max(target, 0.25 + 0.6 * syl); }
+    const idle = talk <= 0 && fake <= now && open < 0.01 && target < 0.01;
+    if (idle && lastDraw && now - lastDraw < 200) return;
     open += (target - open) * 0.35;
     gl.viewport(0, 0, cv.width, cv.height);
     gl.uniform1f(uT, now / 1000); gl.uniform1f(uOp, open);
@@ -985,7 +838,9 @@ const avatar = (() => {
     gl.uniform4f(uM, mouth ? mouth.x : 0.5, mouth ? mouth.y : 0.5, mouth ? mouth.w : 0.1, 0);
     gl.uniform1f(uFH, mouth ? mouth.fh : 0.3);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    $('portrait-wrap').classList.toggle('speaking', open > 0.08);
+    lastDraw = now;
+    const on = open > 0.08;
+    if (on !== speakingOn) { speakingOn = on; $('portrait-wrap').classList.toggle('speaking', on); }
   }
   requestAnimationFrame(frame);
   return { load, setTalk(on) { talk = on ? 1 : 0; }, pulse(text) { fake = performance.now() + Math.min(14000, 900 + (text || '').length * 55); } };
@@ -1015,7 +870,7 @@ function openBook(p) {
 }
 let closeTimer = 0;
 function closeBook() {
-  endSession(); pendingText = null;
+  endSession();
   overlay.classList.add('closing'); overlay.setAttribute('aria-hidden', 'true');
   clearTimeout(closeTimer); closeTimer = setTimeout(() => overlay.classList.remove('show', 'closing'), 480);
   bookOpen = false; document.body.classList.remove('reading');
@@ -1034,28 +889,33 @@ document.querySelectorAll('.lang button').forEach((b) => b.addEventListener('cli
   if (current) { $('left-name').textContent = nameFor(current); $('talk-name').textContent = nameFor(current); }
   $('text-input').placeholder = lang === 'ru' ? 'Или напишите вопрос…' : 'Немесе жазып сұраңыз…';
   const wasVoice = session && sessionKind === 'voice';
-  endSession().then(() => { if (wasVoice) startSession('voice'); });
+  const stop = endSession(), token = sessionEpoch;
+  stop.then(() => { if (wasVoice && bookOpen && token === sessionEpoch) startSession('voice'); });
 }));
 
 /* =========================================================
    Render loop (adaptive resolution, paused behind the book)
    ========================================================= */
 const clock = new THREE.Clock();
-let frames = 0, acc = 0, slow = 0, fast = 0, frozen = false;
+let frames = 0, acc = 0, slow = 0, fast = 0, frozen = false, pageHidden = false, measuringFrames = false;
 function adapt(dt) {
   frames++; acc += dt; if (acc < 1) return;
-  const fps = frames / acc; const n = frames; frames = 0; acc = 0;
-  if (n < 20) return;                       // idle periods (on-demand rendering) are not measured
-  if (fps < 48) { slow++; fast = 0; } else if (fps > 58) { fast++; slow = 0; } else slow = fast = 0;
-  if (slow >= 2 && dpr > 1) { dpr = Math.max(1, dpr - 0.25); renderer.setPixelRatio(dpr); slow = 0; }
-  else if (fast >= 4 && dpr < DPR_MAX) { dpr = Math.min(DPR_MAX, dpr + 0.25); renderer.setPixelRatio(dpr); fast = 0; }
+  const fps = frames / acc; frames = 0; acc = 0;
+  const next = stepDpr(dpr, fps, { dprMax: DPR_MAX, dprMin: Math.min(0.5, DPR_MAX), slowStreak: slow, fastStreak: fast });
+  slow = next.slow; fast = next.fast;
+  if (next.changed) { dpr = next.dpr; renderer.setPixelRatio(dpr); dirty = true; }
 }
 let dirty = true;
 const markDirty = () => { dirty = true; };
 controls.addEventListener('change', markDirty);
+document.addEventListener('visibilitychange', () => {
+  pageHidden = document.hidden; frames = acc = slow = fast = 0; measuringFrames = false;
+  if (!pageHidden) { dirty = true; clock.getDelta(); }
+});
 function animate() {
-  const dt = Math.min(clock.getDelta(), 0.1);
-  if (bookOpen && !flight) { if (!frozen) { renderer.render(scene, camera); frozen = true; } return; }
+  if (!shouldRenderWhileHidden(pageHidden || document.hidden)) return;
+  const dt = clock.getDelta();
+  if (bookOpen && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
   if (frozen) { frozen = false; dirty = true; }
   let active = false;
   if (flight) {
@@ -1080,13 +940,22 @@ function animate() {
       b.lift.position.z = b.hover * 0.9; b.lift.scale.setScalar(1 + b.hover * 0.07); b.glow.material.opacity = b.hover * 0.9;
     }
   }
-  if (!dirty && !active) return;            // nothing changed → no GPU work at all
+  if (!dirty && !active) { frames = acc = slow = fast = 0; measuringFrames = false; return; } // on-demand idle
   dirty = false;
   updateLabels();
   renderer.render(scene, camera);
-  adapt(dt);
+  if (measuringFrames) adapt(dt);
+  measuringFrames = true;
 }
-window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); dirty = true; });
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  DPR_MAX = dprCap(window.devicePixelRatio || 1, QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+  dpr = Math.min(dpr, DPR_MAX); frames = acc = slow = fast = 0; measuringFrames = false;
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  dirty = true;
+});
 
 /* =========================================================
    Boot
