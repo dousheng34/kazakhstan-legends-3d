@@ -1,0 +1,21 @@
+# Photo credits
+
+All portraits are real photographs from Wikimedia Commons under free licences. Each was cropped (3:4 around the face) and resized (downscaled, or - only for low_res entries in the 900x1200 file - upscaled); no other edits. Licence texts: CC BY 2.0/3.0/4.0, CC BY-SA 2.0/3.0/4.0, CC0 1.0. CC BY / CC BY-SA require attribution (below); CC BY-SA also requires derivative images to be shared under the same licence.
+
+| Person | Commons file | Author | Licence | Original px | Crop px (hi-res file) |
+|---|---|---|---|---|---|
+| Димаш Кудайберген | [File:Dimash in Universal Show (cropped).jpg](https://commons.wikimedia.org/wiki/File:Dimash_in_Universal_Show_(cropped).jpg) | Bonnie Smith | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | 1920x1920 | 948x1264 |
+| Геннадий Головкин | [File:Gennady Golovkin.jpg](https://commons.wikimedia.org/wiki/File:Gennady_Golovkin.jpg) | Mike Moss | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0) | 1920x1080 | 810x1080 |
+| Елена Рыбакина | [File:Elena Rybakina 2023 US Open.jpg](https://commons.wikimedia.org/wiki/File:Elena_Rybakina_2023_US_Open.jpg) | Hameltion | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | 2752x4128 | 2160x2880 |
+| Денис Тен | [File:2012 Rostelecom Cup 01d 618 Denis TEN.JPG](https://commons.wikimedia.org/wiki/File:2012_Rostelecom_Cup_01d_618_Denis_TEN.JPG) | Luu | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) | 1680x2559 | 666x888 |
+| Роза Рымбаева | [File:Roza Rymbayeva.jpg](https://commons.wikimedia.org/wiki/File:Roza_Rymbayeva.jpg) | SkySex | [CC0](https://creativecommons.org/publicdomain/zero/1.0/deed.en) | 800x1166 | 798x1064 |
+| Олжас Сулейменов | [File:Cekli829 and Olzhas Suleimenov.jpg](https://commons.wikimedia.org/wiki/File:Cekli829_and_Olzhas_Suleimenov.jpg) | Tərxan Paşazadə | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | 2560x1920 | 1440x1920 |
+| Абиш Кекильбаев | [File:Abish Kekilbayev.jpg](https://commons.wikimedia.org/wiki/File:Abish_Kekilbayev.jpg) | Aviatechology | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | 3168x4752 | 2160x2880 |
+| Юлия Путинцева | [File:Yulia Putintseva (2023 US Open) 01.jpg](https://commons.wikimedia.org/wiki/File:Yulia_Putintseva_(2023_US_Open)_01.jpg) | Hameltion | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | 4000x6000 | 1209x1612 |
+| Жансая Абдумалик | [File:Zhansaya Abdumalik FIDE Women's Grand Prix 2023 Munich.jpg](https://commons.wikimedia.org/wiki/File:Zhansaya_Abdumalik_FIDE_Women's_Grand_Prix_2023_Munich.jpg) | Paul Meyer-Dunker | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | 2929x2594 | 1581x2108 |
+| Динара Садуакасова | [File:2022-Dinara-Saduakassova.JPG](https://commons.wikimedia.org/wiki/File:2022-Dinara-Saduakassova.JPG) | Krzysztof Szeląg | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) | 3570x4760 | 2160x2880 |
+| Бибисара Асаубаева | [File:Bibisara Assaubayeva in 2025 (cropped).jpg](https://commons.wikimedia.org/wiki/File:Bibisara_Assaubayeva_in_2025_(cropped).jpg) | TheBoburshokh | [CC0](https://creativecommons.org/publicdomain/zero/1.0/deed.en) | 3664x3911 | 2160x2880 |
+| Асанали Ашимов | [File:Ашимов.jpg](https://commons.wikimedia.org/wiki/File:%D0%90%D1%88%D0%B8%D0%BC%D0%BE%D0%B2.jpg) | Джумагазиев Марат | [CC0](https://creativecommons.org/publicdomain/zero/1.0/deed.en) | 725x941 | 705x940 |
+| Зарина Дияс | [File:Zarina Diyas - 14148640400.jpg](https://commons.wikimedia.org/wiki/File:Zarina_Diyas_-_14148640400.jpg) | Kulitat | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | 2264x2182 | 1539x2052 |
+| Анна Данилина | [File:Anna Danilina (15176072205) (cropped).jpg](https://commons.wikimedia.org/wiki/File:Anna_Danilina_(15176072205)_(cropped).jpg) | Tatiana from Moscow, Russia | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0) | 1881x2508 | 954x1272 |
+| Алибек Днишев | [File:Алибек Днишев. 22.10.2021 (cropped).jpg](https://commons.wikimedia.org/wiki/File:%D0%90%D0%BB%D0%B8%D0%B1%D0%B5%D0%BA_%D0%94%D0%BD%D0%B8%D1%88%D0%B5%D0%B2._22.10.2021_(cropped).jpg) | parlam.kz | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) | 1466x1956 | 1431x1908 |
