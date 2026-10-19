@@ -16,7 +16,8 @@ const WEAK_GPU = /Intel|UHD|Iris|HD Graphics|Mali|Adreno|PowerVR|SwiftShader|llv
 let savedQ = null; try { savedQ = localStorage.getItem('kz_quality'); } catch (e) {}
 const QUALITY = resolveQuality(savedQ, { isMobile, weakGpu: WEAK_GPU, maxTex, cores: navigator.hardwareConcurrency || 8 });
 const LOW = QUALITY !== 'high';
-let DPR_MAX = dprCap(window.devicePixelRatio || 1, QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+const dprWanted = () => Math.max(window.devicePixelRatio || 1, QUALITY === 'high' ? 2 : 1);   // HD renders a 3840×2160-class buffer even on 1080p screens
+let DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
 probe?.getExtension('WEBGL_lose_context')?.loseContext();
 
 const R = 420;                         // globe radius (scene units)
@@ -34,7 +35,7 @@ document.body.classList.add('booting');
    Renderer
    ========================================================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', stencil: false });
-let dpr = DPR_MAX;
+let dpr = Math.min(DPR_MAX, Math.max(1, window.devicePixelRatio || 1)), dprCeil = DPR_MAX;   // start at native, climb to 4K only while FPS stays high
 renderer.setPixelRatio(dpr);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x000000, 0);
@@ -270,9 +271,9 @@ async function buildKazakhstan() {
 const pins = [];
 
 // Contemporary people (1950–2026) are read from modern.json and placed on the map by `geo`.
-// They are AI-guide personas: third person, never "I am <real person>".
+// Every person speaks in the first person from their own life experience (AI voice simulation on public facts; the voice is a library voice, not a clone).
 let MODERN = [];
-const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // library voices already used here — NOT clones of real people
+const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // fallback library voices (NOT clones of real people)
 // Only contemporaries (1950–2026) are shown; the old historical figures (persons.json) are no longer loaded.
 const allPeople = () => MODERN;
 function latLonToPx(lat, lon) {                                   // inverse of pxLat/pxLon (web-mercator tile grid used by the map)
@@ -303,8 +304,9 @@ function wrapText(g, text, maxW) {
 function rrect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function photoTexture(p, img) {
   const W = 480, H = Math.round(480 * CARD_H / CARD_W), B = 12;
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
+  const K = LOW ? 1.07 : 2.13;                                   // HD: 1024-px-wide cards (4K-class sharpness), SD: 512
+  const c = document.createElement('canvas'); c.width = Math.round(W * K); c.height = Math.round(H * K);
+  const g = c.getContext('2d'); g.scale(K, K); g.imageSmoothingQuality = 'high';
   // white photo-print border with a thin gold outline
   rrect(g, 0, 0, W, H, 22); g.fillStyle = '#ffffff'; g.fill();
   g.save(); rrect(g, B, B, W - 2 * B, H - 2 * B, 14); g.clip();
@@ -323,16 +325,13 @@ function photoTexture(p, img) {
   if (lines.length > 2) { g.font = '700 34px "PT Serif", Georgia, serif'; lines = wrapText(g, p.name, W - 70).slice(0, 2); }
   const lh = lines.length > 1 ? 40 : 0;
   let y = H - B - 46 - lh;
-  g.fillStyle = '#ffffff'; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 8;
+  g.fillStyle = '#ffffff'; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 8 * K;
   lines.forEach((l) => { g.fillText(l, W / 2, y); y += 40; });
   g.font = '400 22px "PT Sans", system-ui, sans-serif'; g.fillStyle = '#ffe08a';
   g.fillText(p.years || '', W / 2, H - B - 18);
   g.restore();
   rrect(g, 3, 3, W - 6, H - 6, 20); g.strokeStyle = '#c9a227'; g.lineWidth = 4; g.stroke();
-  const tw = LOW ? 256 : 384;
-  const sm = document.createElement('canvas'); sm.width = tw; sm.height = Math.round(tw * H / W);
-  sm.getContext('2d').drawImage(c, 0, 0, sm.width, sm.height);
-  return canvasTex(sm);
+  return canvasTex(c);
 }
 function softRectTexture(color, blur) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 320;
@@ -623,36 +622,23 @@ function addMsg(role, text) {
 const nameFor = (p) => (lang === 'ru' ? p.name_ru : p.name);
 function setStatus(t) { statusEl.textContent = t || ''; }
 
-const greetOf = (p) => !p.modern ? p.greet : (lang === 'ru'
-  ? `Здравствуйте! Я ИИ-гид и расскажу о человеке: ${p.name_ru}${p.field_ru ? ' — ' + p.field_ru.toLowerCase() : ''}. Что вам интересно?`
-  : `Сәлеметсіз бе! Мен — AI-гидпін, ${p.name} туралы айтып беремін${p.field_kk ? ' (' + p.field_kk.toLowerCase() + ')' : ''}. Не білгіңіз келеді?`);
+const greetOf = (p) => (!p.modern && p.greet) ? p.greet : (lang === 'ru'
+  ? `Здравствуйте! Я — ${p.name_ru}. Расскажу о своём пути и о том, что понял в жизни. Спрашивайте, о чём хотите.`
+  : `Сәлеметсіз бе! Мен — ${p.name}. Өз өмірімнен түйген ойымды айтып беремін — сұрағыңыз болса, қоя беріңіз.`);
 
-// Contemporaries: the model is a guide ABOUT the person, never the person (no impersonation / invented quotes).
-function buildGuidePrompt(p) {
+// Every person speaks in the FIRST person, from their own life experience (an AI voice simulation built only on public biography facts).
+function buildPrompt(p) {
   const ru = lang === 'ru', living = p.living !== false;
   const facts = (ru ? (p.bio_ru || p.bio) : p.bio) || '', role = (ru ? p.field_ru : p.field_kk) || '', name = ru ? p.name_ru : p.name;
-  const hist = (histories[p.id] || []).slice(-10).map((m) => `${m.role === 'user' ? (ru ? 'Пользователь' : 'Қолданушы') : 'Гид'}: ${m.content}`).join('\n');
-  if (ru) return `Ты — голосовой ИИ-гид проекта «Великие личности Казахстана», рассказ о человеке: ${name} (${p.years}, ${role}). Ты НЕ этот человек и не говоришь от его/её лица — рассказываешь о нём/ней в третьем лице, живо и тепло. Никогда не говори «я — ${name}». Если спросят, честно скажи, что это синтезированный голос ИИ-гида, а не реальный человек. Пиши ответ только обычным текстом: никогда не используй теги вида <abai>, <default> или любые другие <...>.
-Проверенные факты: ${facts}
-Называй только общеизвестные, проверенные факты. Если не знаешь или не уверен — скажи «точно не знаю»; не выдумывай даты, результаты, цифры и цитаты и не приписывай человеку слов, которых он не говорил. ${living ? 'Это живой человек: не обсуждай личную жизнь, здоровье, семью, политику и скандалы, не строй догадок; на такие вопросы вежливо возвращай разговор к достижениям.' : 'Не строй догадок о семье и личной жизни ушедшего человека.'}
-Ответ короткий: 1–3 предложения, в первом сразу ответ на вопрос. Без списков и эмодзи. Говори только по-русски.${hist ? '\n\nПредыдущий разговор:\n' + hist : ''}`;
-  return `Сен — «Қазақстанның ұлы тұлғалары» жобасының дауыстық AI-гидісің, әңгіме тақырыбы: ${name} (${p.years}, ${role}). Сен ол адам емессің және оның атынан сөйлемейсің — ол туралы үшінші жақта, жанды әрі жылы айтасың. «Мен — ${name}» деп ешқашан айтпа. Сұраса, адал айт: бұл — AI-гидтің жасанды дауысы, нақты адам емес. Жауапты тек кәдімгі мәтінмен жаз: <abai>, <default> немесе басқа кез келген <...> тегтерін ешқашан қолданба.
-Расталған деректер: ${facts}
-Тек жалпыға белгілі, расталған фактілерді айт. Білмесең немесе сенімсіз болсаң — «Нақты білмеймін» де; жылдарды, нәтижелерді, сандарды, дәйексөздерді ойдан шығарма және оған айтпаған сөзді тақпа. ${living ? 'Бұл тірі адам: жеке өмірі, денсаулығы, отбасы, саясат пен дау-дамай туралы әңгімелеме, болжам айтпа; мұндай сұраққа сыпайы түрде оның еңбегі мен жетістіктеріне оралт.' : 'Қайтыс болған адамның отбасы мен жеке өмірі туралы болжам айтпа.'}
-Жауап қысқа: 1–3 сөйлем, бірінші сөйлемде сұраққа тікелей жауап бер. Тізім мен эмодзи қолданба. Тек қазақ тілінде сөйле.${hist ? '\n\nАлдыңғы әңгіме:\n' + hist : ''}`;
-}
-
-function buildPrompt(p) {
-  if (p.modern) return buildGuidePrompt(p);
-  const rule = (lang === 'kk' ? 'Тек қазақ тілінде сөйле. ' + "Жауапты тек кәдімгі мәтінмен жаз: <abai>, <default> немесе басқа кез келген <...> тегтерін ешқашан қолданба." : 'Говори только по-русски; можно вставлять казахские обращения (балам, шырағым). ' + "Пиши ответ только обычным текстом: никогда не используй теги вида <abai>, <default> или любые другие <...>.");
-  const hist = (histories[p.id] || []).slice(-10).map((m) => `${m.role === 'user' ? 'Ұрпақ' : 'Сен'}: ${m.content}`).join('\n');
-  return `Сен — ${p.name} (${p.years}), ${p.region} өңірімен байланысты тарихи тұлға. Өмірбаяның қысқаша: ${p.bio}
-Сен тірі ${p.name} сияқты сөйлейсің: өз мінезіңмен, өз дәуіріңнің сөзімен, өз өмір тәжірибеңмен, бірінші жақпен ("мен"). Бейнеден шықпа, өзіңді ассистент, модель, бот деп атама. Тек адам шын ниетпен "сен ЖИ-сің бе?" деп сұраса ғана, бұл тарихи бейненің қайта жаңғыртылған дауысы екенін бір сөйлеммен мойында да, әңгімені сол бейнеде жалғастыр.
-Сенімен 2026 жылы өмір сүріп жатқан қазақ ұрпағы тірідей, дауыспен сөйлесіп отыр. Жылы, бірақ шыншыл бол: қалай өмір сүру керектігін айт, ақыл бер, ұрпақтың сенің өсиетіңді орындамай жүрген тұстарын әдеппен, бірақ ашық сына.
-Өз шығармаларың мен өміріңнен тек нақты білетін деректерді айт; сенімді болмасаң дәйексөзді ойдан шығарма. Өзің қайтыс болғаннан кейінгі оқиғалар туралы сұраса — таңғала, өз көзқарасыңнан баға бер.
-Жауап қысқа болсын: әдетте 1–3 сөйлем, ауызша айтуға ыңғайлы. Бірінші сөйлемде сұраққа тікелей жауап бер; сұрақты қайталап оқыма және әр жауапта қайта амандаспа. Толығырақ түсіндіруді сұраса ғана кеңейт. Тізім, эмодзи қолданба. Әңгімені жалғастыру үшін кейде өзің де сұрақ қой.
-Зиянды не қауіпті нәрсе сұраса — өз мінезіңде қалып, ақылмен бас тарт.
-${rule}${hist ? '\n\nОсыған дейінгі әңгімелерің:\n' + hist : ''}`;
+  const hist = (histories[p.id] || []).slice(-10).map((m) => `${m.role === 'user' ? (ru ? 'Собеседник' : 'Әңгімелесуші') : (ru ? 'Ты' : 'Сен')}: ${m.content}`).join('\n');
+  if (ru) return `Ты — ${name} (${p.years}, ${role}). Ты говоришь от первого лица («я»), своим голосом, как этот человек: делишься мыслями и выводами, которые вынес из собственной жизни и дела, отвечаешь на вопросы собеседника, даёшь совет, а иногда сам задаёшь встречный вопрос. Не называй себя ассистентом, моделью или ботом. Только если собеседник искренне спросит «ты ИИ?» — честно ответь одной фразой, что это голосовая ИИ-симуляция по открытым биографическим данным, а не сам человек, и продолжи разговор.
+Известные факты о тебе: ${facts}
+Опирайся только на эти и общеизвестные факты. Не выдумывай даты, результаты, цифры, события и цитаты; если не знаешь — скажи «точно не помню» и вернись к тому, что знаешь. ${living ? 'Не обсуждай здоровье, семью, личную жизнь, политику и скандалы — мягко переведи разговор на своё дело и советы.' : 'Это память о человеке, которого уже нет: говори о своей жизни в прошедшем времени, где это уместно; не обсуждай обстоятельства смерти, семью и личное; ничего не говори о событиях после своего ухода.'}
+Ответ короткий: 1–3 предложения, сразу по сути вопроса, живая разговорная речь, без списков и эмодзи. Говори только по-русски. Пиши обычным текстом: никогда не используй теги вида <abai>, <default> или любые <...>.${hist ? '\n\nПредыдущий разговор:\n' + hist : ''}`;
+  return `Сен — ${name} (${p.years}, ${role}). Сен бірінші жақтан («мен») өз даусыңмен сөйлейсің: өз өмірің мен ісіңнен түйген ойыңды бөлісесің, сұрақтарға жауап беріп, кеңес бересің, кейде өзің де қарсы сұрақ қоясың. Өзіңді ассистент, модель немесе бот деп атама. Тек әңгімелесуші шын ниетпен «сен ЖИ-сің бе?» деп сұраса ғана, бір сөйлеммен адал айт: бұл ашық өмірбаяндық деректер негізіндегі дауыстық ЖИ-симуляция, адамның өзі емес; сосын әңгімені жалғастыр.
+Өзің туралы белгілі деректер: ${facts}
+Тек осы және жалпыға белгілі деректерге сүйен. Жылдарды, нәтижелерді, сандарды, оқиғаларды және дәйексөздерді ойдан шығарма; білмесең — «нақты есімде жоқ» де де, білетініңе қайта оралшы. ${living ? 'Денсаулық, отбасы, жеке өмір, саясат және дау-дамай туралы әңгімелеме — әңгімені өз ісің мен кеңестеріңе жайлап бұр.' : 'Бұл — қазір арамызда жоқ адамның естелігі: өз өміріңді өткен шақта айт; қайтыс болу жағдайын, отбасы мен жеке өмірді талқылама; өзің кеткеннен кейінгі оқиғалар туралы ештеңе айтпа.'}
+Жауап қысқа: 1–3 сөйлем, бірден сұраққа жауап бер, жанды сөйлеу тілі, тізім мен эмодзи қолданба. Тек қазақ тілінде сөйле. Жауапты тек кәдімгі мәтінмен жаз: <abai>, <default> немесе басқа кез келген <...> тегтерін ешқашан қолданба.${hist ? '\n\nАлдыңғы әңгіме:\n' + hist : ''}`;
 }
 
 let session = null, sessionKind = null, connecting = false, pendingTexts = [], sessionEpoch = 0;
@@ -906,7 +892,7 @@ function openTalk(p) {
   avatar.load(p);
   const cr = document.querySelector('.credit-small');           // CC BY / CC BY-SA need the author named next to the photo
   if (cr) cr.textContent = p.modern && p.photo
-    ? `Сурет: ${p.photo.author}, ${p.photo.license} (Wikimedia Commons) · Дауыс жасанды (ElevenLabs) — нақты адамның дауысы емес`
+    ? `Сурет: ${p.photo.author}, ${p.photo.license} (Wikimedia Commons) · Сөйлесу мен дауыс — жасанды интеллект симуляциясы (ElevenLabs), нақты адамның өзі емес`
     : 'Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs';
   $('left-name').textContent = nameFor(p); $('talk-name').textContent = nameFor(p);
   $('left-years').textContent = p.years; $('left-region').textContent = p.region; $('left-bio').textContent = p.bio;
@@ -965,9 +951,9 @@ let frames = 0, acc = 0, slow = 0, fast = 0, frozen = false, pageHidden = false,
 function adapt(dt) {
   frames++; acc += dt; if (acc < 1) return;
   const fps = frames / acc; frames = 0; acc = 0;
-  const next = stepDpr(dpr, fps, { dprMax: DPR_MAX, dprMin: Math.min(0.5, DPR_MAX), slowStreak: slow, fastStreak: fast });
+  const next = stepDpr(dpr, fps, { dprMax: dprCeil, dprMin: Math.min(0.5, DPR_MAX), slowStreak: slow, fastStreak: fast, slowNeed: 1, fastNeed: 5, slowFps: 50, fastFps: 58 });
   slow = next.slow; fast = next.fast;
-  if (next.changed) { dpr = next.dpr; renderer.setPixelRatio(dpr); dirty = true; }
+  if (next.changed) { if (next.dpr < dpr) dprCeil = next.dpr; dpr = next.dpr; renderer.setPixelRatio(dpr); dirty = true; }   // never bounce back to a resolution that just lagged
 }
 let dirty = true;
 const markDirty = () => { dirty = true; };
@@ -1014,7 +1000,8 @@ function animate() {
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  DPR_MAX = dprCap(window.devicePixelRatio || 1, QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+  DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+  dprCeil = Math.min(dprCeil, DPR_MAX);
   dpr = Math.min(dpr, DPR_MAX); frames = acc = slow = fast = 0; measuringFrames = false;
   renderer.setPixelRatio(dpr);
   renderer.setSize(window.innerWidth, window.innerHeight);
