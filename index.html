@@ -40,9 +40,9 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input id="search" type="search" placeholder="Тұлға, қала, облыс…" autocomplete="off">
       </label>
-      <button id="select-btn" class="chip" title="Ұлы тұлғалар кітабы / Книга великих личностей" aria-label="Ұлы тұлғалар кітабы">
+      <button id="select-btn" class="chip" title="Ұлы тұлғалар / Великие личности" aria-label="Ұлы тұлғалар">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="9" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        <span>Кітап</span>
+        <span>Тұлғалар</span>
       </button>
       <button id="list-toggle" class="chip" aria-label="Тұлғалар тізімі">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
@@ -76,16 +76,14 @@
     <button data-nav="north" title="Солтүстікке бұру"><b>С</b></button>
   </div>
 
-  <div id="hint" class="ui"><span><i>⇔</i> Тартып жылжыту</span><span><i>⊕</i> Дөңгелекпен немесе +/− жақындату</span><span><i>☝</i> Кітапты басыңыз</span></div>
+  <div id="hint" class="ui"><span><i>⇔</i> Тартып жылжыту</span><span><i>⊕</i> Дөңгелекпен немесе +/− жақындату</span><span><i>☝</i> Суретті басыңыз</span></div>
   <div id="hover-tip"></div>
 
-  <!-- Book -->
-  <div id="book-overlay" aria-hidden="true">
-    <button id="book-close" aria-label="Жабу">✕</button>
-    <div id="book">
-      <div class="page-stack"></div>
-      <section class="page left" id="page-left">
-        <div class="orn tl"></div><div class="orn br"></div>
+  <!-- Conversation card -->
+  <div id="talk-overlay" aria-hidden="true">
+    <button id="talk-close" aria-label="Жабу">✕</button>
+    <div id="talk-card">
+      <section class="talk-side" id="talk-side">
         <div class="holo" id="portrait-wrap">
           <canvas id="avatar" width="480" height="640"></canvas>
           <img id="left-img" alt="" hidden>
@@ -98,8 +96,7 @@
         <p id="left-bio" class="stg"></p>
         <div class="credit-small stg">Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs</div>
       </section>
-      <section class="page right" id="page-right">
-        <div class="orn tl"></div><div class="orn br"></div>
+      <section class="talk-main" id="talk-main">
         <div class="talk-head stg">
           <div>
             <div class="talk-kicker">Тікелей сұхбат</div>
@@ -125,16 +122,7 @@
             <button type="submit" aria-label="Жіберу"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 20l18-8L3 4v6l12 2-12 2z"/></svg></button>
           </form>
         </div>
-        <div class="flip-shade"></div>
       </section>
-      <div class="leaf l1"></div><div class="leaf l2"></div>
-      <div class="cover" id="cover">
-        <div class="cover-border"></div>
-        <div class="cover-frame"><img id="cover-img" alt=""></div>
-        <div class="cover-name" id="cover-name"></div>
-        <div class="cover-years" id="cover-years"></div>
-        <div class="cover-shine"></div>
-      </div>
     </div>
   </div>
 

@@ -40,8 +40,8 @@ async def main():
       assert dims['width']*dims['height']<=3840*2160+5000,dims
       assert not dims['overflow'],dims
       await page.locator('#enter-btn').click(); await page.wait_for_timeout(4800)
-      await page.locator('#list-toggle').click(); await page.locator('#list .item').first.click()
-      await page.wait_for_function("document.getElementById('book-overlay').classList.contains('show')")
+      await page.locator('#select-btn').click(); await page.wait_for_selector('#select-screen.show'); await page.locator('.sel-go').click()
+      await page.wait_for_function("document.getElementById('talk-overlay').classList.contains('show')")
       await page.wait_for_timeout(1200)
       await page.screenshot(path=f'{tempfile.gettempdir()}/kz-{name}.png')
       if name=='desktop':
@@ -62,11 +62,11 @@ async def main():
         assert packet==1708,packet
         await page.locator('#live-btn').click()
         assert await page.evaluate('__voiceSockets.at(-1).closed')
-        # Close the book during handshake, then send an obsolete metadata event.
+        # Close the conversation card during handshake, then send an obsolete metadata event.
         await page.evaluate('window.__autoVoice=false')
         await page.locator('#live-btn').click()
         await page.wait_for_function('__voiceSockets.length>=3')
-        await page.locator('#book-close').click()
+        await page.locator('#talk-close').click()
         await page.wait_for_timeout(200)
         assert await page.evaluate('__voiceSockets.at(-1).closed')
         await page.evaluate("__voiceSockets.at(-1).emit({type:'conversation_initiation_metadata',conversation_initiation_metadata_event:{agent_output_audio_format:'pcm_16000',user_input_audio_format:'pcm_16000'}})")
