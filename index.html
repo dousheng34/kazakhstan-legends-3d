@@ -121,16 +121,17 @@
     </div>
   </div>
 
-  <!-- Splash -->
-  <div id="splash">
-    <div class="splash-inner">
-      <svg class="splash-orn" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="13" fill="#FEC50C"/><g stroke="#FEC50C" stroke-width="3" stroke-linecap="round"><path d="M32 6v7M32 51v7M6 32h7M51 32h7M13.6 13.6l5 5M45.4 45.4l5 5M13.6 50.4l5-5M45.4 18.6l5-5"/></g></svg>
-      <div class="splash-kicker">Қазақстан</div>
-      <h1>Ұлы тұлғалар әлемі</h1>
-      <p>Жер шарынан Қазақстанға ұшып барып, ұлы тұлғалармен тірідей сөйлесіңіз.</p>
+  <!-- Intro video: plays first, then dissolves into the 3D globe -->
+  <div id="intro" aria-label="Кіріспе">
+    <video id="intro-video" src="intro.mp4" poster="intro_poster.jpg" autoplay muted playsinline preload="auto"></video>
+    <div class="intro-glow"></div>
+    <div class="intro-ui">
+      <button id="intro-sound" type="button" aria-label="Дыбысты қосу">🔇 Дыбыс</button>
+      <button id="intro-skip" type="button">Өткізу ›</button>
+    </div>
+    <div class="intro-load">
       <div class="progress"><div id="progress-bar"></div></div>
       <div id="progress-text">Жүктелуде… 0%</div>
-      <button id="enter-btn" disabled>Бастау</button>
     </div>
   </div>
 
