@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from './OrbitControls.js';
 import { AgentSession } from './voice-session.js';
-import { initSelect, makeSfx } from './select.js';
-import { teleport } from './teleport.js';
+import { initSelect } from './select.js';
 import { resolveQuality, dprCap, stepDpr, shouldRenderWhileHidden, labelOpacityCss } from './render-quality.js';
 
 /* =========================================================
@@ -460,12 +459,9 @@ function globeView(scale = 3.4) {
   return { pos: new THREE.Vector3(0, 0.99, 0.14).normalize().multiplyScalar(R * scale).add(GLOBE_CENTER), target: GLOBE_CENTER.clone(), mode: 'globe' };
 }
 let flight = null;
-const uiSfx = makeSfx();
 function goToMap() {
   hideHint();
-  const fromGlobe = mode === 'globe';
-  if (fromGlobe) teleport({ title: lang === 'ru' ? 'КАЗАХСТАН' : 'ҚАЗАҚСТАН', subtitle: lang === 'ru' ? 'Великие личности' : 'Ұлы тұлғалар', sfx: () => uiSfx.warp() });
-  flyTo(mapView(), fromGlobe ? 1500 : 1100, () => { setMode('map'); dirty = true; });
+  flyTo(mapView(), mode === 'globe' ? 1500 : 1100, () => { setMode('map'); dirty = true; });
 }
 function flyTo(v, dur = 1400, done) {
   flight = { p0: camera.position.clone(), t0: controls.target.clone(), p1: v.pos.clone(), t1: v.target.clone(), start: performance.now(), dur, done, mode: v.mode };

@@ -20,8 +20,8 @@ async def run_case(b, name, w, h, dpr, touch, hist, n_people):
   info['map_photos'] = await pg.evaluate('window.__kz.pins.length')
   info['old_buttons_hidden'] = await pg.evaluate("['list-toggle','panel'].every(id => getComputedStyle(document.getElementById(id)).display === 'none') && getComputedStyle(document.querySelector('.search-wrap')).display === 'none'")
   await pg.locator('#enter-btn').click()
-  await pg.wait_for_selector('#warp', timeout=15000); info['teleport'] = True      # warp overlay during the descent
-  await pg.wait_for_function("!document.getElementById('warp')", timeout=20000)       # landed on the map with the photos
+  await pg.wait_for_timeout(4500)                                                      # plain camera flight to the map (no teleport)
+  info['no_teleport'] = await pg.evaluate("!document.getElementById('warp')")
   await pg.locator('#select-btn').click()
   await pg.wait_for_selector('#select-screen.show', timeout=20000)
   await pg.wait_for_timeout(600)
