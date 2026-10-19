@@ -27,7 +27,7 @@ const VS = (R / 6371000) * EXAG;       // scene units per metre of elevation
 const BASE = 2.6;                      // how far Kazakhstan is raised above the globe
 const H_MIN = -150;
 const KZ_LAT = 48.0, KZ_LON = 67.0;
-const BOOK_W = 5.2, BOOK_H = 6.9, BOOK_T = 0.6;
+const CARD_W = 4.6, CARD_H = 6.1;                // photo cards lying on the map (scene units)
 const DEG = Math.PI / 180;
 const $ = (id) => document.getElementById(id);
 document.body.classList.add('booting');
@@ -267,19 +267,17 @@ async function buildKazakhstan() {
 }
 
 /* =========================================================
-   Personality books lying on the map
+   People on the map: plain photo cards (no books)
    ========================================================= */
-const books = [];
+const pins = [];
 let PERSONS = [];
 
-// Contemporary people (1950–2026) are read from modern.json. They have no 3D book on the map; they open from the
-// character-select screen / list. They are AI-guide personas: third person, never "I am <real person>".
+// Contemporary people (1950–2026) are read from modern.json and placed on the map by `geo`.
+// They are AI-guide personas: third person, never "I am <real person>".
 let MODERN = [];
-const GRAND_SCALE = 3;
-const GRAND = { id: 'grand', grand: true, name: 'Ұлы тұлғалар кітабы', name_ru: 'Книга великих личностей', years: '1950–2026', region: 'Қазақстан' };
 const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // library voices already used here — NOT clones of real people
-// The 23 historical figures are hidden by default (data and code are kept): switch on from the select screen, or add ?classic
-const HIST_ON = (() => { try { return localStorage.getItem('kz_hist') === '1'; } catch (e) { return false; } })() || /[?&]classic\b/.test(location.search);
+// The 23 historical figures are shown by default again; they can still be hidden from the select screen.
+const HIST_ON = (() => { try { return localStorage.getItem('kz_hist') !== '0'; } catch (e) { return true; } })();
 const allPeople = () => MODERN.concat(HIST_ON ? PERSONS : []);
 function latLonToPx(lat, lon) {                                   // inverse of pxLat/pxLon (web-mercator tile grid used by the map)
   const n = 2 ** META.z, x = (lon + 180) / 360 * n, y = (1 - Math.log(Math.tan(lat * DEG) + 1 / Math.cos(lat * DEG)) / Math.PI) / 2 * n;
@@ -307,66 +305,36 @@ function wrapText(g, text, maxW) {
   if (line) lines.push(line); return lines;
 }
 function rrect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
-function coverTexture(p, img) {
-  const W = 600, H = Math.round(600 * BOOK_H / BOOK_W);
+function photoTexture(p, img) {
+  const W = 480, H = Math.round(480 * CARD_H / CARD_W), B = 12;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d');
-  rrect(g, 0, 0, W, H, 26); g.save(); g.clip();
-  const bg = g.createRadialGradient(W * 0.3, H * 0.2, 40, W * 0.5, H * 0.5, H * 0.8);
-  bg.addColorStop(0, '#13819b'); bg.addColorStop(0.6, '#0b5266'); bg.addColorStop(1, '#073a49');
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  // ornament border
-  rrect(g, 22, 22, W - 44, H - 44, 16); g.strokeStyle = 'rgba(254,197,12,.85)'; g.lineWidth = 4; g.stroke();
-  rrect(g, 32, 32, W - 64, H - 64, 12); g.strokeStyle = 'rgba(254,197,12,.35)'; g.lineWidth = 2; g.stroke();
-  // portrait in gold frame
-  const fw = W * 0.62, fh = fw * 4 / 3, fx = (W - fw) / 2, fy = 66;
-  const gold = g.createLinearGradient(fx, fy, fx + fw, fy + fh);
-  gold.addColorStop(0, '#ffe58a'); gold.addColorStop(0.5, '#c9a227'); gold.addColorStop(1, '#ffd65a');
-  g.fillStyle = gold; rrect(g, fx - 10, fy - 10, fw + 20, fh + 20, 8); g.fill();
-  g.save(); rrect(g, fx, fy, fw, fh, 4); g.clip();
-  const r = Math.max(fw / img.width, fh / img.height), iw = img.width * r, ih = img.height * r;
-  g.drawImage(img, fx + (fw - iw) / 2, fy, iw, ih); g.restore();
-  // name
+  // white photo-print border with a thin gold outline
+  rrect(g, 0, 0, W, H, 22); g.fillStyle = '#ffffff'; g.fill();
+  g.save(); rrect(g, B, B, W - 2 * B, H - 2 * B, 14); g.clip();
+  const iw0 = W - 2 * B, ih0 = H - 2 * B;
+  if (img) {
+    const r = Math.max(iw0 / img.width, ih0 / img.height), iw = img.width * r, ih = img.height * r;
+    g.drawImage(img, B + (iw0 - iw) / 2, B + Math.min(0, (ih0 - ih) * 0.2), iw, ih);   // keep the face near the top
+  } else { g.fillStyle = '#0b5266'; g.fillRect(B, B, iw0, ih0); }
+  // name strip over the bottom of the photo
+  const sh = g.createLinearGradient(0, H * 0.58, 0, H);
+  sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.82)');
+  g.fillStyle = sh; g.fillRect(B, H * 0.58, iw0, H * 0.42);
   g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  g.fillStyle = '#ffd84d'; g.font = '700 50px "PT Serif", Georgia, serif';
-  let lines = wrapText(g, p.name, W - 90);
-  if (lines.length > 2) { g.font = '700 42px "PT Serif", Georgia, serif'; lines = wrapText(g, p.name, W - 90).slice(0, 2); }
-  let y = fy + fh + 74;
-  lines.forEach((l) => { g.fillText(l, W / 2, y); y += 54; });
-  g.fillStyle = '#cfe9f0'; g.font = '400 28px "PT Sans", system-ui, sans-serif';
-  g.fillText(p.years, W / 2, y + 6);
+  g.font = '700 40px "PT Serif", Georgia, serif';
+  let lines = wrapText(g, p.name, W - 70);
+  if (lines.length > 2) { g.font = '700 34px "PT Serif", Georgia, serif'; lines = wrapText(g, p.name, W - 70).slice(0, 2); }
+  const lh = lines.length > 1 ? 40 : 0;
+  let y = H - B - 46 - lh;
+  g.fillStyle = '#ffffff'; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 8;
+  lines.forEach((l) => { g.fillText(l, W / 2, y); y += 40; });
+  g.font = '400 22px "PT Sans", system-ui, sans-serif'; g.fillStyle = '#ffe08a';
+  g.fillText(p.years || '', W / 2, H - B - 18);
   g.restore();
-  const sm = document.createElement('canvas'); sm.width = 320; sm.height = Math.round(320 * H / W);
-  sm.getContext('2d').drawImage(c, 0, 0, sm.width, sm.height);
-  return canvasTex(sm);
-}
-function grandCoverTexture(faces) {
-  const W = 1200, H = Math.round(1200 * BOOK_H / BOOK_W);
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  rrect(g, 0, 0, W, H, 40); g.save(); g.clip();
-  const bg = g.createRadialGradient(W * 0.5, H * 0.35, 60, W * 0.5, H * 0.5, H * 0.85);
-  bg.addColorStop(0, '#1a2a52'); bg.addColorStop(0.55, '#0d1733'); bg.addColorStop(1, '#060b1c');
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  rrect(g, 30, 30, W - 60, H - 60, 26); g.strokeStyle = 'rgba(254,197,12,.95)'; g.lineWidth = 8; g.stroke();
-  rrect(g, 52, 52, W - 104, H - 104, 18); g.strokeStyle = 'rgba(254,197,12,.4)'; g.lineWidth = 3; g.stroke();
-  // sun + title
-  g.fillStyle = '#fec50c'; g.beginPath(); g.arc(W / 2, 150, 46, 0, Math.PI * 2); g.fill();
-  g.strokeStyle = '#fec50c'; g.lineWidth = 6; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; g.beginPath(); g.moveTo(W / 2 + Math.cos(a) * 62, 150 + Math.sin(a) * 62); g.lineTo(W / 2 + Math.cos(a) * 86, 150 + Math.sin(a) * 86); g.stroke(); }
-  g.textAlign = 'center'; g.fillStyle = '#ffd84d'; g.font = '700 92px "PT Serif", Georgia, serif';
-  g.fillText('ҰЛЫ ТҰЛҒАЛАР', W / 2, 330); g.font = '700 70px "PT Serif", Georgia, serif'; g.fillText('КІТАБЫ', W / 2, 420);
-  // collage
-  const n = 3, gap = 22, cw = (W - 200 - gap * (n - 1)) / n, ch = cw * 4 / 3, x0 = 100, y0 = 480;
-  (faces || []).slice(0, 9).forEach((img, i) => {
-    const x = x0 + (i % n) * (cw + gap), y = y0 + Math.floor(i / n) * (ch + gap);
-    g.fillStyle = '#c9a227'; rrect(g, x - 6, y - 6, cw + 12, ch + 12, 10); g.fill();
-    g.save(); rrect(g, x, y, cw, ch, 6); g.clip();
-    const r = Math.max(cw / img.width, ch / img.height), iw = img.width * r, ih = img.height * r;
-    g.drawImage(img, x + (cw - iw) / 2, y, iw, ih); g.restore();
-  });
-  g.fillStyle = '#cfe9f0'; g.font = '400 44px "PT Sans", system-ui, sans-serif'; g.fillText('1950 – 2026', W / 2, H - 92);
-  g.restore();
-  const sm = document.createElement('canvas'); sm.width = 1024; sm.height = Math.round(1024 * H / W);
+  rrect(g, 3, 3, W - 6, H - 6, 20); g.strokeStyle = '#c9a227'; g.lineWidth = 4; g.stroke();
+  const tw = LOW ? 256 : 384;
+  const sm = document.createElement('canvas'); sm.width = tw; sm.height = Math.round(tw * H / W);
   sm.getContext('2d').drawImage(c, 0, 0, sm.width, sm.height);
   return canvasTex(sm);
 }
@@ -377,19 +345,18 @@ function softRectTexture(color, blur) {
   return canvasTex(c);
 }
 
-async function buildBooks() {
+
+async function buildPins() {
   PERSONS = await getJSON('persons.json');
   await loadModern();
-  [GRAND.px, GRAND.py] = latLonToPx(KZ_LAT, KZ_LON);
-  const bookPeople = [GRAND];                                     // no per-person cards on the land any more
-  try { await Promise.all([document.fonts.load('700 50px "PT Serif"'), document.fonts.load('400 28px "PT Sans"')]); } catch (e) {}
-  const imgs = await Promise.all(bookPeople.map((p) => p.grand ? Promise.all(MODERN.slice(0, 9).map((m) => loadImg(imgOf(m)))) : loadImg(imgOf(p))));
+  const people = allPeople().filter((p) => Number.isFinite(p.px) && Number.isFinite(p.py));
+  try { await Promise.all([document.fonts.load('700 40px "PT Serif"'), document.fonts.load('400 22px "PT Sans"')]); } catch (e) {}
+  const imgs = await Promise.all(people.map((p) => loadImg(imgOf(p)).catch(() => null)));
 
-  // relax overlapping books in map-pixel space (axis-aligned footprints)
-  const items = bookPeople.map((p) => {
+  // relax overlapping photos in map-pixel space (axis-aligned footprints)
+  const items = people.map((p) => {
     const upp = 0.0806 * (R / 420) * Math.cos(pxLat(p.py) * DEG);   // scene units per map pixel
-    const S = p.grand ? GRAND_SCALE : 1;
-    return { p, S, x: p.px, y: p.py, ox: p.px, oy: p.py, hw: (BOOK_W * S / upp) / 2 + 8, hh: (BOOK_H * S / upp) / 2 + 8 };
+    return { p, x: p.px, y: p.py, ox: p.px, oy: p.py, hw: (CARD_W / upp) / 2 + 6, hh: (CARD_H / upp) / 2 + 6 };
   });
   for (let it = 0; it < 300; it++) {
     for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
@@ -403,18 +370,9 @@ async function buildBooks() {
     for (const t of items) { t.x += (t.ox - t.x) * 0.02; t.y += (t.oy - t.y) * 0.02; }
   }
 
-  const shape = new THREE.Shape(); const w = BOOK_W / 2, h = BOOK_H / 2, r = 0.22;
-  shape.moveTo(-w + r, -h); shape.lineTo(w - r, -h); shape.quadraticCurveTo(w, -h, w, -h + r); shape.lineTo(w, h - r); shape.quadraticCurveTo(w, h, w - r, h);
-  shape.lineTo(-w + r, h); shape.quadraticCurveTo(-w, h, -w, h - r); shape.lineTo(-w, -h + r); shape.quadraticCurveTo(-w, -h, -w + r, -h);
-  const bodyGeo = new THREE.ExtrudeGeometry(shape, { depth: BOOK_T, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.05, bevelSegments: 2, curveSegments: 4 });
-  const pagesTex = (() => { const c = document.createElement('canvas'); c.width = 8; c.height = 64; const g = c.getContext('2d');
-    g.fillStyle = '#f6efdc'; g.fillRect(0, 0, 8, 64); for (let y = 0; y < 64; y += 3) { g.fillStyle = 'rgba(150,125,90,.25)'; g.fillRect(0, y, 8, 1); } return canvasTex(c); })();
-  pagesTex.wrapS = pagesTex.wrapT = THREE.RepeatWrapping; pagesTex.repeat.set(1, 1);
-  const capMat = new THREE.MeshStandardMaterial({ color: 0x0a4c5f, roughness: 0.6 });
-  const pageMat = new THREE.MeshStandardMaterial({ map: pagesTex, roughness: 0.85 });
-  const coverGeo = new THREE.PlaneGeometry(BOOK_W + 0.06, BOOK_H + 0.06);
-  const shadowGeo = new THREE.PlaneGeometry(BOOK_W * 1.45, BOOK_H * 1.45);
-  const shadowMat = new THREE.MeshBasicMaterial({ map: softRectTexture('rgba(10,25,35,1)', 18), transparent: true, opacity: 0.45, depthWrite: false });
+  const photoGeo = new THREE.PlaneGeometry(CARD_W, CARD_H);
+  const shadowGeo = new THREE.PlaneGeometry(CARD_W * 1.4, CARD_H * 1.4);
+  const shadowMat = new THREE.MeshBasicMaterial({ map: softRectTexture('rgba(10,25,35,1)', 18), transparent: true, opacity: 0.4, depthWrite: false });
   const glowMat0 = new THREE.MeshBasicMaterial({ map: softRectTexture('rgba(254,197,12,1)', 22), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
   const pinGeo = new THREE.CircleGeometry(0.32, 24), ringGeo = new THREE.RingGeometry(0.5, 0.75, 40);
   const pinMat = new THREE.MeshBasicMaterial({ color: 0xfec50c, toneMapped: false });
@@ -422,7 +380,7 @@ async function buildBooks() {
 
   items.forEach((it, i) => {
     const p = it.p;
-    // footprint height: highest terrain under the book
+    // footprint height: highest terrain under the photo
     let hmax = H_MIN;
     for (const [fx, fy] of [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) hmax = Math.max(hmax, heightAtPx(it.x + fx * it.hw * 0.9, it.y + fy * it.hh * 0.9));
     const lat = pxLat(it.y), lon = pxLon(it.x);
@@ -430,29 +388,27 @@ async function buildBooks() {
     const base = new THREE.Group();
     base.position.copy(sph(lat, lon, rTop(hmax) + 0.05));
     base.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(e, no, n));
-    if (it.S !== 1) base.scale.setScalar(it.S);
     const lift = new THREE.Group(); base.add(lift);
-    const shadow = new THREE.Mesh(shadowGeo, shadowMat); shadow.position.set(0.35, 0.45, 0.02); base.add(shadow);
+    const shadow = new THREE.Mesh(shadowGeo, shadowMat); shadow.position.set(0.3, 0.4, 0.02); base.add(shadow);
     const glow = new THREE.Mesh(shadowGeo, glowMat0.clone()); glow.position.z = 0.03; base.add(glow);
-    const body = new THREE.Mesh(bodyGeo, [capMat, pageMat]); lift.add(body);
-    const cover = new THREE.Mesh(coverGeo, new THREE.MeshBasicMaterial({ map: p.grand ? grandCoverTexture(imgs[i]) : coverTexture(p, imgs[i]), transparent: true, alphaTest: 0.5, toneMapped: false }));
-    cover.position.z = BOOK_T + 0.05; lift.add(cover);
-    body.userData.index = cover.userData.index = i;
+    const photo = new THREE.Mesh(photoGeo, new THREE.MeshBasicMaterial({ map: photoTexture(p, imgs[i]), transparent: true, alphaTest: 0.5, toneMapped: false }));
+    photo.position.z = 0.12; lift.add(photo);
+    photo.userData.index = pins.length;
     globe.add(base);
 
-    // pin at the exact birthplace + leader line when the book had to move aside
+    // pin at the exact place + leader line when the photo had to move aside
     const truLat = pxLat(p.py), truLon = pxLon(p.px), tb = basisAt(truLat, truLon);
     const pin = new THREE.Group(); pin.position.copy(sph(truLat, truLon, rTop(heightAtPx(p.px, p.py)) + 0.06));
     pin.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(tb.e, tb.no, tb.n));
     pin.add(new THREE.Mesh(pinGeo, pinMat));
-    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfec50c, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false }));
-    ring.position.z = 0.01; ring.material.opacity = 0.55; pin.add(ring);
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfec50c, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false }));
+    ring.position.z = 0.01; pin.add(ring);
     globe.add(pin);
     if (Math.hypot(it.x - p.px, it.y - p.py) > 6) {
       const lg = new THREE.BufferGeometry().setFromPoints([pin.position.clone(), base.position.clone().add(n.clone().multiplyScalar(0.05))]);
       globe.add(new THREE.Line(lg, lineMat));
     }
-    books.push({ p, base, lift, body, cover, glow, ring, hover: 0, phase: Math.random() * 6.28, scale: it.S });
+    pins.push({ p, base, lift, photo, glow, ring, hover: 0 });
   });
 }
 
@@ -503,23 +459,13 @@ function mapView() {
 function globeView(scale = 3.4) {
   return { pos: new THREE.Vector3(0, 0.99, 0.14).normalize().multiplyScalar(R * scale).add(GLOBE_CENTER), target: GLOBE_CENTER.clone(), mode: 'globe' };
 }
-let flight = null, firstArrival = true;
+let flight = null;
 const uiSfx = makeSfx();
-function grandView() {
-  const b = books.find((x) => x.p.grand); if (!b) return mapView();
-  const S = b.scale || 1, wp = new THREE.Vector3(); b.cover.getWorldPosition(wp);
-  const up = wp.clone().sub(GLOBE_CENTER).normalize();
-  return { pos: wp.clone().add(up.multiplyScalar(19 * S)).add(new THREE.Vector3(0, 0, 15 * S)), target: wp, mode: 'map' };
-}
-function openGrand() { if (!bookOpen && !selectUI.isOpen()) selectUI.open(); }
-function travelToBook({ auto = false } = {}) {
+function goToMap() {
   hideHint();
   const fromGlobe = mode === 'globe';
-  if (fromGlobe) teleport({ title: lang === 'ru' ? 'КАЗАХСТАН' : 'ҚАЗАҚСТАН', subtitle: lang === 'ru' ? 'Книга великих личностей' : 'Ұлы тұлғалар кітабы', sfx: () => uiSfx.warp() });
-  flyTo(grandView(), fromGlobe ? 1500 : 1100, () => {
-    setMode('map'); dirty = true;
-    if (auto || (fromGlobe && firstArrival)) { firstArrival = false; setTimeout(openGrand, 380); }
-  });
+  if (fromGlobe) teleport({ title: lang === 'ru' ? 'КАЗАХСТАН' : 'ҚАЗАҚСТАН', subtitle: lang === 'ru' ? 'Великие личности' : 'Ұлы тұлғалар', sfx: () => uiSfx.warp() });
+  flyTo(mapView(), fromGlobe ? 1500 : 1100, () => { setMode('map'); dirty = true; });
 }
 function flyTo(v, dur = 1400, done) {
   flight = { p0: camera.position.clone(), t0: controls.target.clone(), p1: v.pos.clone(), t1: v.target.clone(), start: performance.now(), dur, done, mode: v.mode };
@@ -550,7 +496,7 @@ function updateMode() {
   } else {
     const off = tmpv.subVectors(camera.position, GLOBE_CENTER);
     const above = off.clone().normalize().y;                 // 1 = straight above Kazakhstan
-    if (off.length() < R + 300 && above > 0.86) { travelToBook(); return false; }
+    if (off.length() < R + 300 && above > 0.86) { goToMap(); return false; }
   }
   if (mode === 'globe') { if (controls.target.distanceTo(GLOBE_CENTER) > 0.05) { controls.target.lerp(GLOBE_CENTER, 0.08); return true; } }
   else if (controls.target.distanceTo(GLOBE_CENTER) < R * 0.98) { controls.target.lerp(new THREE.Vector3(0, 0, 6), 0.08); return true; }
@@ -567,11 +513,11 @@ function pick(ev) {
   const r = renderer.domElement.getBoundingClientRect();
   mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(mouse, camera);
-  const hit = ray.intersectObjects(books.flatMap((b) => [b.cover, b.body]), false)[0];
-  return hit ? books[hit.object.userData.index] : null;
+  const hit = ray.intersectObjects(pins.map((b) => b.photo), false)[0];
+  return hit ? pins[hit.object.userData.index] : null;
 }
 renderer.domElement.addEventListener('pointermove', (ev) => {
-  if (bookOpen || ev.pointerType === 'touch') return;
+  if (talkOpen || ev.pointerType === 'touch') return;
   const now = performance.now(); if (now - lastMove < 40) return; lastMove = now;
   const b = mode === 'map' ? pick(ev) : null; hovered = b;
   renderer.domElement.style.cursor = b ? 'pointer' : 'grab';
@@ -580,26 +526,25 @@ renderer.domElement.addEventListener('pointermove', (ev) => {
 });
 renderer.domElement.addEventListener('pointerdown', (ev) => { downAt = { x: ev.clientX, y: ev.clientY, t: performance.now() }; hideHint(); });
 renderer.domElement.addEventListener('pointerup', (ev) => {
-  if (!downAt || bookOpen) return;
-  if (Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) < 7 && performance.now() - downAt.t < 650) { const b = pick(ev); if (b) focusBook(b); }
+  if (!downAt || talkOpen) return;
+  if (Math.hypot(ev.clientX - downAt.x, ev.clientY - downAt.y) < 7 && performance.now() - downAt.t < 650) { const b = pick(ev); if (b) focusPin(b); }
   downAt = null;
 });
 renderer.domElement.addEventListener('dblclick', (ev) => {
-  if (mode === 'globe') travelToBook();
+  if (mode === 'globe') goToMap();
 });
 renderer.domElement.addEventListener('wheel', hideHint, { passive: true });
 function hideHint() { $('hint').classList.add('gone'); }
 
-function focusBook(b) {
+function focusPin(b) {
   tip.style.opacity = 0; hovered = null;
-  const wp = new THREE.Vector3(); b.cover.getWorldPosition(wp);
+  const wp = new THREE.Vector3(); b.photo.getWorldPosition(wp);
   const up = wp.clone().sub(GLOBE_CENTER).normalize();
-  const S = b.scale || 1;
-  const pos = wp.clone().add(up.multiplyScalar(13 * S)).add(new THREE.Vector3(0, 0, 7.5 * S));
-  flyTo({ pos, target: wp, mode: 'map' }, 1200, () => { setMode('map'); if (b.p.grand) openGrand(); else openBook(b.p); });
+  const pos = wp.clone().add(up.multiplyScalar(13)).add(new THREE.Vector3(0, 0, 7.5));
+  flyTo({ pos, target: wp, mode: 'map' }, 1200, () => { setMode('map'); openTalk(b.p); });
   closePanel();
 }
-$('home-btn').addEventListener('click', () => travelToBook());
+$('home-btn').addEventListener('click', () => goToMap());
 $('globe-btn').addEventListener('click', () => flyTo(globeView(), 1900, () => setMode('globe')));
 $('fs-btn').addEventListener('click', () => {
   const d = document;
@@ -616,7 +561,7 @@ document.querySelectorAll('#nav button').forEach((btn) => btn.addEventListener('
     const k = act === 'in' ? 0.55 : 1.8;
     // crossing between globe and map → one continuous flight (no second hop, no target snap)
     if (mode === 'globe' && act === 'in' && camera.position.distanceTo(GLOBE_CENTER) * k < R + 420) {
-      travelToBook(); return;
+      goToMap(); return;
     }
     if (mode === 'map' && act === 'out' && off.length() * k > 560) {
       flyTo(globeView(2.6), 1100, () => setMode('globe')); return;
@@ -663,11 +608,11 @@ function renderList(filter = '') {
 }
 $('search').addEventListener('input', (e) => { renderList(e.target.value); panel.classList.add('open'); });
 
-// Historical figures fly the camera to their 3D book; contemporaries open directly (no map book).
+// Everyone with a place on the map: the camera flies to their photo first, then the conversation opens.
 function pickPerson(p) {
-  const b = books.find((x) => x.p.id === p.id);
-  if (b) { focusBook(b); return; }
-  tip.style.opacity = 0; hovered = null; closePanel(); openBook(p);
+  const b = pins.find((x) => x.p.id === p.id);
+  if (b) { focusPin(b); return; }
+  tip.style.opacity = 0; hovered = null; closePanel(); openTalk(p);
 }
 let selecting = false;
 const selectUI = initSelect({
@@ -678,11 +623,11 @@ const selectUI = initSelect({
 $('select-btn').addEventListener('click', () => selectUI.open());
 
 /* =========================================================
-   Book + ElevenLabs live conversation
+   Person card + ElevenLabs live conversation
    ========================================================= */
-let bookOpen = false, current = null, lang = 'kk';
+let talkOpen = false, current = null, lang = 'kk';
 const histories = {};
-const overlay = $('book-overlay'), cover = $('cover'), log = $('chat-log'), statusEl = $('status'), wave = $('wave');
+const overlay = $('talk-overlay'), log = $('chat-log'), statusEl = $('status'), wave = $('wave');
 const cleanText = (t) => (t || '').replace(/<\/?[a-z_]{1,32}>\s*/gi, '').replace(/\[[^\]]{1,40}\]\s*/g, '').trim();
 function addMsg(role, text) {
   const d = document.createElement('div'); d.className = `msg ${role === 'user' ? 'u' : 'a'}`; d.textContent = text;
@@ -692,19 +637,19 @@ const nameFor = (p) => (lang === 'ru' ? p.name_ru : p.name);
 function setStatus(t) { statusEl.textContent = t || ''; }
 
 const greetOf = (p) => !p.modern ? p.greet : (lang === 'ru'
-  ? `Открыта страница книги: ${p.name_ru}${p.field_ru ? ' — ' + p.field_ru.toLowerCase() : ''}. Что вам интересно?`
-  : `Кітаптың ${p.name} парағы ашылды${p.field_kk ? ' (' + p.field_kk.toLowerCase() + ')' : ''}. Не білгіңіз келеді?`);
+  ? `Здравствуйте! Я ИИ-гид и расскажу о человеке: ${p.name_ru}${p.field_ru ? ' — ' + p.field_ru.toLowerCase() : ''}. Что вам интересно?`
+  : `Сәлеметсіз бе! Мен — AI-гидпін, ${p.name} туралы айтып беремін${p.field_kk ? ' (' + p.field_kk.toLowerCase() + ')' : ''}. Не білгіңіз келеді?`);
 
 // Contemporaries: the model is a guide ABOUT the person, never the person (no impersonation / invented quotes).
 function buildGuidePrompt(p) {
   const ru = lang === 'ru', living = p.living !== false;
   const facts = (ru ? (p.bio_ru || p.bio) : p.bio) || '', role = (ru ? p.field_ru : p.field_kk) || '', name = ru ? p.name_ru : p.name;
   const hist = (histories[p.id] || []).slice(-10).map((m) => `${m.role === 'user' ? (ru ? 'Пользователь' : 'Қолданушы') : 'Гид'}: ${m.content}`).join('\n');
-  if (ru) return `Ты — голос интерактивной «Книги великих личностей», страница о человеке: ${name} (${p.years}, ${role}). Ты НЕ этот человек и не говоришь от его/её лица — рассказываешь о нём/ней в третьем лице, живо и тепло. Никогда не говори «я — ${name}». Если спросят, честно скажи, что это синтезированный голос книги, а не реальный человек. Пиши ответ только обычным текстом: никогда не используй теги вида <abai>, <default> или любые другие <...>.
+  if (ru) return `Ты — голосовой ИИ-гид проекта «Великие личности Казахстана», рассказ о человеке: ${name} (${p.years}, ${role}). Ты НЕ этот человек и не говоришь от его/её лица — рассказываешь о нём/ней в третьем лице, живо и тепло. Никогда не говори «я — ${name}». Если спросят, честно скажи, что это синтезированный голос ИИ-гида, а не реальный человек. Пиши ответ только обычным текстом: никогда не используй теги вида <abai>, <default> или любые другие <...>.
 Проверенные факты: ${facts}
 Называй только общеизвестные, проверенные факты. Если не знаешь или не уверен — скажи «точно не знаю»; не выдумывай даты, результаты, цифры и цитаты и не приписывай человеку слов, которых он не говорил. ${living ? 'Это живой человек: не обсуждай личную жизнь, здоровье, семью, политику и скандалы, не строй догадок; на такие вопросы вежливо возвращай разговор к достижениям.' : 'Не строй догадок о семье и личной жизни ушедшего человека.'}
 Ответ короткий: 1–3 предложения, в первом сразу ответ на вопрос. Без списков и эмодзи. Говори только по-русски.${hist ? '\n\nПредыдущий разговор:\n' + hist : ''}`;
-  return `Сен — «Ұлы тұлғалар кітабының» дауысысың, бұл парақ: ${name} (${p.years}, ${role}). Сен ол адам емессің және оның атынан сөйлемейсің — ол туралы үшінші жақта, жанды әрі жылы айтасың. «Мен — ${name}» деп ешқашан айтпа. Сұраса, адал айт: бұл — кітаптың жасанды дауысы, нақты адам емес. Жауапты тек кәдімгі мәтінмен жаз: <abai>, <default> немесе басқа кез келген <...> тегтерін ешқашан қолданба.
+  return `Сен — «Қазақстанның ұлы тұлғалары» жобасының дауыстық AI-гидісің, әңгіме тақырыбы: ${name} (${p.years}, ${role}). Сен ол адам емессің және оның атынан сөйлемейсің — ол туралы үшінші жақта, жанды әрі жылы айтасың. «Мен — ${name}» деп ешқашан айтпа. Сұраса, адал айт: бұл — AI-гидтің жасанды дауысы, нақты адам емес. Жауапты тек кәдімгі мәтінмен жаз: <abai>, <default> немесе басқа кез келген <...> тегтерін ешқашан қолданба.
 Расталған деректер: ${facts}
 Тек жалпыға белгілі, расталған фактілерді айт. Білмесең немесе сенімсіз болсаң — «Нақты білмеймін» де; жылдарды, нәтижелерді, сандарды, дәйексөздерді ойдан шығарма және оған айтпаған сөзді тақпа. ${living ? 'Бұл тірі адам: жеке өмірі, денсаулығы, отбасы, саясат пен дау-дамай туралы әңгімелеме, болжам айтпа; мұндай сұраққа сыпайы түрде оның еңбегі мен жетістіктеріне оралт.' : 'Қайтыс болған адамның отбасы мен жеке өмірі туралы болжам айтпа.'}
 Жауап қысқа: 1–3 сөйлем, бірінші сөйлемде сұраққа тікелей жауап бер. Тізім мен эмодзи қолданба. Тек қазақ тілінде сөйле.${hist ? '\n\nАлдыңғы әңгіме:\n' + hist : ''}`;
@@ -794,7 +739,7 @@ async function startSession(kind) {
   const s = new AgentSession({
     agentId: AGENT_ID, audioContext: audioCtx,
     override: {
-      // Greeting stays visible in the book; do not read it before listening.
+      // Greeting stays visible in the chat; do not read it before listening.
       agent: { prompt: { prompt: buildPrompt(p) }, first_message: '', language: lang },
       tts: { voice_id: p.voice, speed: p.speed || 1 },
     },
@@ -940,7 +885,7 @@ const avatar = (() => {
   function frame(now) {
     requestAnimationFrame(frame);
     if (!shouldRenderWhileHidden(document.hidden)) return;
-    if (!bookOpen || !ready) return;
+    if (!talkOpen || !ready) return;
     let target = 0;
     if (talk > 0) {
       let vol = 0; try { vol = session && sessionKind === 'voice' ? session.getOutputVolume() : 0; } catch (e) {}
@@ -965,10 +910,9 @@ const avatar = (() => {
   return { load, setTalk(on) { talk = on ? 1 : 0; }, pulse(text) { fake = performance.now() + Math.min(14000, 900 + (text || '').length * 55); } };
 })();
 
-function openBook(p) {
-  current = p; bookOpen = true; document.body.classList.add('reading');
+function openTalk(p) {
+  current = p; talkOpen = true; document.body.classList.add('reading');
   if (p.modern) setLangUI(p.lang);                       // each person opens in the language they are known for
-  $('cover-img').src = imgOf(p);
   const bigScreen = Math.max(innerWidth, innerHeight) * (devicePixelRatio || 1) >= 2400, leftImg = $('left-img');
   leftImg.onerror = () => { leftImg.onerror = null; leftImg.src = imgOf(p); };
   leftImg.src = bigScreen ? hiOf(p) : imgOf(p);
@@ -977,11 +921,10 @@ function openBook(p) {
   if (cr) cr.textContent = p.modern && p.photo
     ? `Сурет: ${p.photo.author}, ${p.photo.license} (Wikimedia Commons) · Дауыс жасанды (ElevenLabs) — нақты адамның дауысы емес`
     : 'Сурет: Wikimedia Commons / Wikipedia · Дауыс: ElevenLabs';
-  $('cover-name').textContent = p.name; $('cover-years').textContent = p.years;
   $('left-name').textContent = nameFor(p); $('talk-name').textContent = nameFor(p);
   $('left-years').textContent = p.years; $('left-region').textContent = p.region; $('left-bio').textContent = p.bio;
-  let mh = $('page-right').querySelector('.mobile-head');
-  if (!mh) { mh = document.createElement('div'); mh.className = 'mobile-head'; $('page-right').insertBefore(mh, $('page-right').querySelector('.talk-head')); }
+  let mh = $('talk-main').querySelector('.mobile-head');
+  if (!mh) { mh = document.createElement('div'); mh.className = 'mobile-head'; $('talk-main').insertBefore(mh, $('talk-main').querySelector('.talk-head')); }
   mh.innerHTML = '<img alt=""><div><div class="n"></div><div class="y"></div><div class="b"></div></div>';
   mh.querySelector('img').src = imgOf(p); mh.querySelector('.n').textContent = p.name;
   mh.querySelector('.y').textContent = `${p.years} · ${p.region}`; mh.querySelector('.b').textContent = p.bio;
@@ -993,23 +936,23 @@ function openBook(p) {
   $('newtab-btn').hidden = !IN_IFRAME;
   $('live-label').textContent = liveLabel();
   clearTimeout(closeTimer);
-  overlay.classList.remove('show', 'closing'); void overlay.offsetWidth;   // restart the opening choreography
+  overlay.classList.remove('show', 'closing'); void overlay.offsetWidth;   // restart the opening animation
   overlay.classList.add('show'); overlay.setAttribute('aria-hidden', 'false');
 }
 let closeTimer = 0;
-function closeBook() {
+function closeTalk() {
   endSession();
   overlay.classList.add('closing'); overlay.setAttribute('aria-hidden', 'true');
   clearTimeout(closeTimer); closeTimer = setTimeout(() => overlay.classList.remove('show', 'closing'), 480);
-  bookOpen = false; document.body.classList.remove('reading');
+  talkOpen = false; document.body.classList.remove('reading');
   const t = controls.target.clone();
   const back = new THREE.Vector3().subVectors(camera.position, t).normalize().multiplyScalar(70).add(t);
   back.y = Math.max(back.y, t.y + 40);
   flyTo({ pos: back, target: t, mode: 'map' }, 1100, () => setMode('map'));
 }
-$('book-close').addEventListener('click', closeBook);
-overlay.addEventListener('click', (e) => { if (e.target === overlay) closeBook(); });
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && bookOpen) closeBook(); });
+$('talk-close').addEventListener('click', closeTalk);
+overlay.addEventListener('click', (e) => { if (e.target === overlay) closeTalk(); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && talkOpen) closeTalk(); });
 function setLangUI(l) {
   lang = l === 'ru' ? 'ru' : 'kk';
   document.querySelectorAll('.lang button').forEach((x) => x.classList.toggle('on', x.dataset.lang === lang));
@@ -1024,11 +967,11 @@ document.querySelectorAll('.lang button').forEach((b) => b.addEventListener('cli
   $('text-input').placeholder = lang === 'ru' ? 'Или напишите вопрос…' : 'Немесе жазып сұраңыз…';
   const wasVoice = session && sessionKind === 'voice';
   const stop = endSession(), token = sessionEpoch;
-  stop.then(() => { if (wasVoice && bookOpen && token === sessionEpoch) startSession('voice'); });
+  stop.then(() => { if (wasVoice && talkOpen && token === sessionEpoch) startSession('voice'); });
 }));
 
 /* =========================================================
-   Render loop (adaptive resolution, paused behind the book)
+   Render loop (adaptive resolution, paused behind the conversation card)
    ========================================================= */
 const clock = new THREE.Clock();
 let frames = 0, acc = 0, slow = 0, fast = 0, frozen = false, pageHidden = false, measuringFrames = false;
@@ -1049,7 +992,7 @@ document.addEventListener('visibilitychange', () => {
 function animate() {
   if (!shouldRenderWhileHidden(pageHidden || document.hidden)) return;
   const dt = clock.getDelta();
-  if ((bookOpen || selecting) && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
+  if ((talkOpen || selecting) && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
   if (frozen) { frozen = false; dirty = true; }
   let active = false;
   if (flight) {
@@ -1067,7 +1010,7 @@ function animate() {
     if (Math.abs(tg.y) > 0.01) { tg.y += (0 - tg.y) * 0.1; active = true; }
     camera.position.x += tg.x - ox; camera.position.z += tg.z - oz;
   }
-  for (const b of books) {
+  for (const b of pins) {
     const goal = b === hovered ? 1 : 0;
     if (Math.abs(goal - b.hover) > 0.002) {
       b.hover += (goal - b.hover) * 0.2; active = true;
@@ -1097,9 +1040,9 @@ window.addEventListener('resize', () => {
 (async function boot() {
   try {
     await buildKazakhstan();
-    await Promise.all([buildGlobe(), buildBooks(), buildCities()]);
+    await Promise.all([buildGlobe(), buildPins(), buildCities()]);
     await loadModern(); renderList(); $('count').textContent = allPeople().length;
-    if (/[?&]debug\b/.test(location.search)) window.__kz = { books, people: allPeople };
+    if (/[?&]debug\b/.test(location.search)) window.__kz = { pins, people: allPeople };
     const gv = globeView(4.6);
     camera.position.copy(gv.pos); controls.target.copy(gv.target); setMode('globe');
     renderer.compile(scene, camera);
@@ -1109,7 +1052,7 @@ window.addEventListener('resize', () => {
     const btn = $('enter-btn'); btn.disabled = false; btn.focus();
     btn.addEventListener('click', () => {
       $('splash').classList.add('hide'); document.body.classList.remove('booting');
-      flyTo(globeView(2.6), 1600, () => travelToBook({ auto: true }));
+      flyTo(globeView(2.6), 1600, () => goToMap());
       setTimeout(hideHint, 10000);
     }, { once: true });
   } catch (e) {

@@ -92,7 +92,7 @@
 @keyframes sel-lock { 50% { transform: scale(1.05); filter: brightness(1.4); } to { transform: scale(1.12); filter: brightness(2); } }
 @keyframes sel-flash { 70% { opacity: 0; } to { opacity: .85; } }
 
-/* AI note inside the book */
+/* AI note inside the conversation card */
 #ai-note { margin: 0 0 8px; padding: 7px 10px; border-radius: 8px; font: 12.5px/1.4 var(--sans); background: rgba(0,167,196,.12); border: 1px solid rgba(0,167,196,.4); color: #0a5e70; }
 #select-btn { background: linear-gradient(180deg, #fec50c, #c9a227); color: #1a1405; font-weight: 700; border: 0; letter-spacing: .04em; }
 #select-btn:hover { filter: brightness(1.07); }
@@ -135,26 +135,14 @@
 /* the old list panel and search are replaced by this screen */
 #list-toggle, .search-wrap, #panel { display: none !important; }
 
-/* ===== the screen is the inside of ONE big open book (two pages + spine) ===== */
-#select-screen .sel-main { margin: 2px 26px 14px; padding: 18px 30px; min-width: 0; grid-template-columns: minmax(0, 46fr) minmax(0, 54fr); border-radius: 16px; perspective: 1800px;
-  background:
-    radial-gradient(120% 90% at 25% 30%, rgba(255,255,255,.05), transparent 60%),
-    linear-gradient(90deg, #0e1836 0%, #13204a 40%, #0a1128 46%, #0a1128 54%, #13204a 60%, #0e1836 100%);
-  border: 3px solid #c9a227;
-  box-shadow: 0 0 0 7px #2b1e07, 0 0 0 10px #c9a227, 0 0 60px color-mix(in srgb, var(--acc, #fec50c) 35%, transparent), 0 40px 90px rgba(0,0,0,.75), inset 0 0 90px rgba(0,0,0,.55); }
-#select-screen .sel-main::before { content: ""; position: absolute; top: 10px; bottom: 10px; width: 26px; pointer-events: none; z-index: 0;
-  left: calc(30px + (100% - 104px) * .46 + 9px);
-  background: linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,.65) 45%, rgba(254,197,12,.35) 50%, rgba(0,0,0,.65) 55%, rgba(0,0,0,0)); }
-#select-screen .sel-main::after { content: ""; position: absolute; inset: 12px; border-radius: 10px; pointer-events: none; border: 1px solid rgba(254,197,12,.25);
-  opacity: .6; }
+/* ===== the select screen: one dark glass panel (no book look) ===== */
+#select-screen .sel-main { margin: 2px 26px 14px; padding: 18px 30px; min-width: 0; grid-template-columns: minmax(0, 46fr) minmax(0, 54fr); border-radius: 18px;
+  background: radial-gradient(120% 90% at 25% 30%, rgba(255,255,255,.06), transparent 60%), linear-gradient(160deg, #0f1a38, #0a1128);
+  border: 1px solid color-mix(in srgb, var(--acc, #fec50c) 55%, transparent);
+  box-shadow: 0 0 60px color-mix(in srgb, var(--acc, #fec50c) 25%, transparent), 0 40px 90px rgba(0,0,0,.7); }
 .sel-preview, .sel-grid { position: relative; z-index: 1; }
-/* pages open from the spine */
-#select-screen.show .sel-main { animation: book-in .55s cubic-bezier(.2,.9,.25,1) both; }
-#select-screen.show .sel-preview { transform-origin: right center; animation: page-l .7s .1s cubic-bezier(.2,.9,.25,1) both; }
-#select-screen.show .sel-grid { transform-origin: left center; animation: page-r .7s .1s cubic-bezier(.2,.9,.25,1) both; }
-@keyframes book-in { from { transform: scale(.72) translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes page-l { from { transform: rotateY(88deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes page-r { from { transform: rotateY(-88deg); opacity: 0; } to { transform: none; opacity: 1; } }
+#select-screen.show .sel-main { animation: panel-in .4s cubic-bezier(.2,.9,.25,1) both; }
+@keyframes panel-in { from { transform: translateY(24px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* person of the day */
 .sel-potd { position: absolute; top: 6px; left: -2px; right: -2px; font: 700 8.5px/1 var(--sans); letter-spacing: .1em; font-style: normal; padding: 4px 0; text-align: center;
@@ -178,11 +166,9 @@
 
 @media (max-width: 860px) {
   #select-screen .sel-main { margin: 2px 8px 8px; padding: 12px 10px; gap: 10px; grid-template-columns: minmax(0, 1fr); }
-  #select-screen .sel-main::before { display: none; }
-  #select-screen .sel-main::after { background: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #select-screen.show .sel-main, #select-screen.show .sel-preview, #select-screen.show .sel-grid { animation: none; }
+  #select-screen.show .sel-main { animation: none; }
 }
 
 #select-screen { overflow: hidden; }

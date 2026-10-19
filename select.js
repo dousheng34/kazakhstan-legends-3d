@@ -5,13 +5,13 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const COARSE = matchMedia('(pointer: coarse)').matches;
 
 const T = {
-  kk: { title: 'ТҰЛҒАНЫ ТАҢДА', kicker: 'ҰЛЫ ТҰЛҒАЛАР КІТАБЫ', potd: 'КҮННІҢ ТҰЛҒАСЫ', all: 'Барлығы', modern: 'Замандастар', classic: 'Тарихи тұлғалар',
+  kk: { title: 'ТҰЛҒАНЫ ТАҢДА', kicker: 'ҚАЗАҚСТАННЫҢ ҰЛЫ ТҰЛҒАЛАРЫ', potd: 'КҮННІҢ ТҰЛҒАСЫ', all: 'Барлығы', modern: 'Замандастар', classic: 'Тарихи тұлғалар',
         pick: 'ТАҢДАУ', close: 'Жабу', ai: 'AI-гид', aiHint: 'Бұл — жасанды интеллект гиді; дауыс нақты адамның дауысы емес.',
         hint: '← ↑ → ↓ таңдау · Enter — ашу · R — кездейсоқ · M — дыбыс · Esc — жабу', kk: 'ҚАЗ', ru: 'РУС', empty: 'Ештеңе табылмады',
         search: 'Іздеу: аты, қала, сала…', random: 'Кездейсоқ', sfxOn: 'Дыбыс: ҚОС', sfxOff: 'Дыбыс: ӨШІРУЛІ', slam: 'СӨЙЛЕСЕЙІК!',
         histShow: 'Тарихи тұлғаларды көрсету', histHide: 'Тарихи тұлғаларды жасыру',
         cat: { music: 'Музыка', sport: 'Спорт', science: 'Ғылым', culture: 'Мәдениет' } },
-  ru: { title: 'ВЫБЕРИ ЛЕГЕНДУ', kicker: 'КНИГА ВЕЛИКИХ ЛИЧНОСТЕЙ', potd: 'ЛИЧНОСТЬ ДНЯ', all: 'Все', modern: 'Современники', classic: 'Исторические',
+  ru: { title: 'ВЫБЕРИ ЛЕГЕНДУ', kicker: 'ВЕЛИКИЕ ЛИЧНОСТИ КАЗАХСТАНА', potd: 'ЛИЧНОСТЬ ДНЯ', all: 'Все', modern: 'Современники', classic: 'Исторические',
         pick: 'ВЫБРАТЬ', close: 'Закрыть', ai: 'ИИ-гид', aiHint: 'Это ИИ-гид; голос — не голос реального человека.',
         hint: '← ↑ → ↓ выбор · Enter — открыть · R — случайный · M — звук · Esc — закрыть', kk: 'КАЗ', ru: 'РУС', empty: 'Ничего не найдено',
         search: 'Поиск: имя, город, сфера…', random: 'Случайный', sfxOn: 'Звук: ВКЛ', sfxOff: 'Звук: ВЫКЛ', slam: 'ДАВАЙ ПОГОВОРИМ!',
@@ -56,7 +56,7 @@ export function makeSfx() {
     pick: () => { whoosh(0.45, 0.12); tone(110, 0.5, 'sawtooth', 0.07, 45); tone(440, 0.18, 'square', 0.05, 1320, 0.06); tone(660, 0.2, 'square', 0.04, 1760, 0.14); },
     random: () => [520, 700, 900, 1180].forEach((f, i) => tone(f, 0.055, 'square', 0.03, 0, i * 0.055)),
     warp: () => { whoosh(1.4, 0.14); tone(90, 1.3, 'sawtooth', 0.05, 900); tone(180, 1.2, 'triangle', 0.04, 1600, 0.1); },
-    page: () => { whoosh(0.5, 0.08); tone(300, 0.2, 'triangle', 0.03, 520, 0.05); },
+    reveal: () => { whoosh(0.5, 0.08); tone(300, 0.2, 'triangle', 0.03, 520, 0.05); },
     isMuted,
     toggle() { muted = !isMuted(); try { localStorage.setItem('kz_sfx', muted ? '0' : '1'); } catch (e) {} if (muted) { try { speechSynthesis.cancel(); } catch (e) {} } else tone(700, 0.08, 'square', 0.04, 1000); return muted; },
   };
@@ -298,7 +298,7 @@ export function initSelect({ getPeople, imgOf, hiOf, getUiLang = () => 'kk', onP
     document.body.classList.add('selecting');
     query = ''; search.value = '';
     if (!sel) pending = potdId();
-    render(); sfx.page();
+    render(); sfx.reveal();
     requestAnimationFrame(() => { root.classList.add('show'); (grid.querySelector('.sel-tile.on') || q('.sel-close')).focus({ preventScroll: true }); });
     if (sel) announce(sel);
     onOpen && onOpen();
