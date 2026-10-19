@@ -351,7 +351,8 @@ async function buildPins() {
   // relax overlapping photos in map-pixel space (axis-aligned footprints)
   const items = people.map((p) => {
     const upp = 0.0806 * (R / 420) * Math.cos(pxLat(p.py) * DEG);   // scene units per map pixel
-    return { p, x: p.px, y: p.py, ox: p.px, oy: p.py, hw: (CARD_W / upp) / 2 + 6, hh: (CARD_H / upp) / 2 + 6 };
+    const hh = (CARD_H / upp) / 2 + 6, y0 = p.py - hh;               // photo stands just north of its city, the city name stays readable
+    return { p, x: p.px, y: y0, ox: p.px, oy: y0, hw: (CARD_W / upp) / 2 + 6, hh };
   });
   for (let it = 0; it < 300; it++) {
     for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
@@ -423,6 +424,7 @@ async function buildCities() {
 }
 const proj = new THREE.Vector3(), tmpv = new THREE.Vector3();
 function updateLabels() {
+  camera.updateMatrixWorld();                                    // project with THIS frame's camera (no stale labels after a flight)
   const W = window.innerWidth, H = window.innerHeight;
   for (const c of CITIES) {
     const d = camera.position.distanceTo(c.pos);
@@ -985,7 +987,7 @@ function animate() {
     camera.position.lerpVectors(flight.p0, flight.p1, e);
     controls.target.lerpVectors(flight.t0, flight.t1, e);
     active = true;
-    if (k >= 1) { const d = flight.done; flight = null; d && d(); }
+    if (k >= 1) { const d = flight.done; flight = null; dirty = true; d && d(); }
   }
   if (updateMode()) active = true;
   controls.update();
