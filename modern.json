@@ -41,9 +41,9 @@
    50.283,
    57.167
   ],
-  "geo_note": "Ақтөбе",
+  "geo_note": "Ақтөбе (туған қаласы)",
   "voice": "zOpa1hybmCey0nqbmcMW",
-  "speed": 1.0
+  "speed": 1.03
  },
  {
   "id": "golovkin",
@@ -87,9 +87,9 @@
    49.807,
    73.088
   ],
-  "geo_note": "Қарағанды",
-  "voice": "Vp3gaOLjssOTvqcooFwg",
-  "speed": 0.98
+  "geo_note": "Қарағанды (туған қаласы)",
+  "voice": "DhwIuljOm695yhWY4OpF",
+  "speed": 1.0
  },
  {
   "id": "rybakina",
@@ -130,12 +130,12 @@
   "img": "img/rybakina.jpg",
   "img_hi": "img_hi/rybakina.jpg",
   "geo": [
-   43.238,
-   76.946
+   52.287,
+   76.967
   ],
-  "geo_note": "Алматы (символдық)",
-  "voice": "cgSgspJ2msm6clMCkdW9",
-  "speed": 1.0
+  "geo_note": "Павлодар (символдық)",
+  "voice": "t6lBrEl93uCiLR1Lgm8v",
+  "speed": 1.02
  },
  {
   "id": "denis_ten",
@@ -179,9 +179,9 @@
    43.238,
    76.946
   ],
-  "geo_note": "Алматы",
-  "voice": "nXhev13NFTenmq7t5WZH",
-  "speed": 1.0
+  "geo_note": "Алматы (туған қаласы)",
+  "voice": "sy3iWjPWyIrDlSo8mBwS",
+  "speed": 1.02
  },
  {
   "id": "rymbayeva",
@@ -222,12 +222,12 @@
   "img": "img/rymbayeva.jpg",
   "img_hi": "img/rymbayeva.jpg",
   "geo": [
-   50.411,
-   80.227
+   49.948,
+   82.628
   ],
-  "geo_note": "Семей (Шығыс Қазақстан, шамамен)",
+  "geo_note": "Өскемен (Шығыс Қазақстан, туған өңірі)",
   "voice": "L9IT3CnBaFSG99pi86dr",
-  "speed": 0.95
+  "speed": 0.94
  },
  {
   "id": "suleimenov",
@@ -268,11 +268,11 @@
   "img": "img/suleimenov.jpg",
   "img_hi": "img_hi/suleimenov.jpg",
   "geo": [
-   43.238,
-   76.946
+   50.411,
+   80.227
   ],
-  "geo_note": "Алматы",
-  "voice": "nPczCjzI2devNBz1zQrb",
+  "geo_note": "Семей («Невада–Семей» қозғалысы)",
+  "voice": "9AjtU6o19uipv7QL8dLL",
   "speed": 0.92
  },
  {
@@ -317,9 +317,9 @@
    43.651,
    51.158
   ],
-  "geo_note": "Маңғыстау (Ақтау, шамамен)",
-  "voice": "dQO3cohklRk58SrkwMjq",
-  "speed": 0.93
+  "geo_note": "Ақтау (Маңғыстау, туған өңірі)",
+  "voice": "RojlvMxYbtU94goTCgIP",
+  "speed": 0.9
  },
  {
   "id": "putintseva",
@@ -360,11 +360,11 @@
   "img": "img/putintseva.jpg",
   "img_hi": "img_hi/putintseva.jpg",
   "geo": [
-   43.238,
-   76.946
+   47.094,
+   51.924
   ],
-  "geo_note": "Алматы (символдық)",
-  "voice": "FGY2WhTYpPnrIDTdsKH5",
+  "geo_note": "Атырау (символдық)",
+  "voice": "Jbte7ht1CqapnZvc4KpK",
   "speed": 1.02
  },
  {
@@ -406,12 +406,12 @@
   "img": "img/abdumalik.jpg",
   "img_hi": "img_hi/abdumalik.jpg",
   "geo": [
-   43.238,
-   76.946
+   45.017,
+   78.373
   ],
-  "geo_note": "Алматы",
-  "voice": "EXAVITQu4vr4xnSDxMaL",
-  "speed": 1.0
+  "geo_note": "Талдықорған (Алматы облысы, символдық)",
+  "voice": "QpQ3ApUOdmaUcNblVLGC",
+  "speed": 1.03
  },
  {
   "id": "saduakassova",
@@ -456,7 +456,7 @@
    71.449
   ],
   "geo_note": "Астана",
-  "voice": "XrExE9yKIg1WjnnlVkGX",
+  "voice": "inSavBKUniNDYIfIcSyG",
   "speed": 1.0
  },
  {
@@ -501,9 +501,9 @@
    42.901,
    71.378
   ],
-  "geo_note": "Тараз",
-  "voice": "QpQ3ApUOdmaUcNblVLGC",
-  "speed": 1.02
+  "geo_note": "Тараз (туған қаласы)",
+  "voice": "ETBmMkYUh8i2exSl2h3P",
+  "speed": 1.04
  },
  {
   "id": "ashimov",
@@ -544,12 +544,12 @@
   "img": "img/ashimov.jpg",
   "img_hi": "img/ashimov.jpg",
   "geo": [
-   42.901,
-   71.378
+   42.315,
+   69.587
   ],
-  "geo_note": "Жамбыл облысы (Тараз, шамамен)",
-  "voice": "9NqTZSpHJZHucyduMacF",
-  "speed": 0.93
+  "geo_note": "Шымкент (оңтүстік өңір, символдық)",
+  "voice": "nXhev13NFTenmq7t5WZH",
+  "speed": 0.92
  },
  {
   "id": "diyas",
@@ -590,11 +590,11 @@
   "img": "img/diyas.jpg",
   "img_hi": "img_hi/diyas.jpg",
   "geo": [
-   43.238,
-   76.946
+   43.866,
+   77.063
   ],
-  "geo_note": "Алматы",
-  "voice": "XB0fDUnXU5powFXDhCwa",
+  "geo_note": "Қонаев (Алматы облысы, символдық)",
+  "voice": "tj9wwIq7s2HekkDfg1KH",
   "speed": 1.0
  },
  {
@@ -636,11 +636,11 @@
   "img": "img/danilina.jpg",
   "img_hi": "img_hi/danilina.jpg",
   "geo": [
-   51.169,
-   71.449
+   51.204,
+   51.371
   ],
-  "geo_note": "Астана (символдық)",
-  "voice": "Xb7hH8MSUJpSbSDYk0k2",
+  "geo_note": "Орал (символдық)",
+  "voice": "IExsTwnJMk9vWMW4SzsN",
   "speed": 1.0
  },
  {
@@ -682,11 +682,11 @@
   "img": "img/dnishev.jpg",
   "img_hi": "img_hi/dnishev.jpg",
   "geo": [
-   43.238,
-   76.946
+   44.853,
+   65.509
   ],
-  "geo_note": "Алматы",
-  "voice": "RojlvMxYbtU94goTCgIP",
+  "geo_note": "Қызылорда (символдық)",
+  "voice": "dQO3cohklRk58SrkwMjq",
   "speed": 0.95
  }
 ]

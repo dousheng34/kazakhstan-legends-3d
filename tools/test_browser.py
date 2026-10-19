@@ -35,11 +35,11 @@ async def main():
       page=await ctx.new_page(); errors=[]
       page.on('pageerror',lambda error:errors.append(str(error)))
       await page.goto('http://127.0.0.1:8000/?debug',wait_until='domcontentloaded')
-      await page.wait_for_function("!document.getElementById('enter-btn').disabled",timeout=90000)
+      await page.wait_for_function("document.getElementById('intro')?.classList.contains('ready')",timeout=90000)
       dims=await page.evaluate("({width:document.querySelector('#stage canvas').width,height:document.querySelector('#stage canvas').height,overflow:document.documentElement.scrollWidth>innerWidth})")
       assert dims['width']*dims['height']<=3840*2160+5000,dims
       assert not dims['overflow'],dims
-      await page.locator('#enter-btn').click(); await page.wait_for_timeout(4800)
+      await page.locator('#intro-skip').click(); await page.wait_for_timeout(5200)
       await page.locator('#list-toggle').click(); await page.locator('#list .item').first.click()
       await page.wait_for_function("document.getElementById('talk-overlay').classList.contains('show')")
       await page.wait_for_timeout(1200)

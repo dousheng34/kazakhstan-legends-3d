@@ -1020,6 +1020,44 @@ window.addEventListener('resize', () => {
 });
 
 /* =========================================================
+   Intro video → golden dissolve → globe → map
+   ========================================================= */
+const intro = (() => {
+  const el = $('intro'), v = $('intro-video'), snd = $('intro-sound');
+  let ended = false, ready = false, done = false;
+  const play = () => { const p = v.play(); if (p && p.catch) p.catch(() => {}); };
+  play();
+  el.addEventListener('click', (e) => { if (!e.target.closest('button') && v.paused && !ended) play(); });   // autoplay blocked → first tap starts it
+  v.addEventListener('ended', () => { ended = true; go(); });
+  v.addEventListener('error', () => { ended = true; go(); });
+  // never get stuck on a stalled video
+  const guard = () => setTimeout(() => { if (!ended) { ended = true; go(); } }, (v.duration || 12.5) * 1000 + 6000);
+  if (v.readyState >= 1) guard(); else v.addEventListener('loadedmetadata', guard, { once: true });
+  setTimeout(() => { if (v.readyState < 2 && !ended) { ended = true; go(); } }, 9000);
+  snd.addEventListener('click', () => {
+    v.muted = !v.muted; if (!v.muted) { v.volume = 1; if (v.paused && !ended) play(); }
+    snd.textContent = v.muted ? '🔇 Дыбыс' : '🔊 Дыбыс'; snd.setAttribute('aria-label', v.muted ? 'Дыбысты қосу' : 'Дыбысты өшіру');
+  });
+  $('intro-skip').addEventListener('click', () => {
+    ended = true;
+    try { if (v.duration) v.currentTime = Math.max(0, v.duration - 0.05); v.pause(); } catch (e) {}
+    go();
+  });
+  function go() {
+    if (done || !ended || !ready) return;
+    done = true;
+    el.classList.add('out');
+    if (!v.muted) { const t0 = performance.now(); const fade = () => { const k = Math.min(1, (performance.now() - t0) / 1600); v.volume = 1 - k; if (k < 1) requestAnimationFrame(fade); }; fade(); }
+    document.body.classList.remove('booting'); document.body.classList.add('reveal');
+    dirty = true;
+    flyTo(globeView(2.6), 1700, () => goToMap());
+    setTimeout(() => { try { v.pause(); } catch (e) {} el.remove(); document.body.classList.remove('reveal'); }, 2600);
+    setTimeout(hideHint, 10000);
+  }
+  return { setReady() { ready = true; el.classList.add('ready'); go(); }, isDone: () => done };
+})();
+
+/* =========================================================
    Boot
    ========================================================= */
 (async function boot() {
@@ -1034,12 +1072,7 @@ window.addEventListener('resize', () => {
     ALL_TEX.forEach((t) => { try { renderer.initTexture(t); } catch (e) {} });   // upload all textures now → no freeze later
     renderer.setAnimationLoop(animate);
     $('progress-bar').style.width = '100%'; $('progress-text').textContent = 'Дайын';
-    const btn = $('enter-btn'); btn.disabled = false; btn.focus();
-    btn.addEventListener('click', () => {
-      $('splash').classList.add('hide'); document.body.classList.remove('booting');
-      flyTo(globeView(2.6), 1600, () => goToMap());
-      setTimeout(hideHint, 10000);
-    }, { once: true });
+    intro.setReady();
   } catch (e) {
     console.error(e); $('progress-text').textContent = 'Жүктеу қатесі: ' + e.message;
   }
