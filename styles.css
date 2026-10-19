@@ -106,88 +106,43 @@ body.reading .ui, body.reading #labels { opacity: 0; pointer-events: none; }
 
 #credit { position: fixed; left: 12px; bottom: 7px; font: 10px var(--sans); color: rgba(19,34,46,.42); pointer-events: none; z-index: 5; }
 
-/* ---------- Book ---------- */
-#book-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
+/* ---------- Conversation card (photo + live chat) ---------- */
+#talk-overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
   background: radial-gradient(ellipse at center, rgba(234,244,250,.35), rgba(186,214,232,.85)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  opacity: 0; pointer-events: none; transition: opacity .45s ease; }
-#book-overlay.show { opacity: 1; pointer-events: auto; }
-#book-overlay.show.closing { opacity: 0; pointer-events: none; transition: opacity .42s ease .08s; }
-#book-close { position: absolute; top: 18px; right: 20px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(19,34,46,.12);
+  opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+#talk-overlay.show { opacity: 1; pointer-events: auto; }
+#talk-overlay.show.closing { opacity: 0; pointer-events: none; transition: opacity .35s ease .05s; }
+#talk-close { position: absolute; top: 18px; right: 20px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(19,34,46,.12);
   background: #fff; color: var(--ink); font-size: 16px; cursor: pointer; z-index: 5; box-shadow: 0 8px 24px rgba(19,34,46,.15);
-  opacity: 0; transform: scale(.6); transition: opacity .3s .9s, transform .4s .9s cubic-bezier(.3,1.6,.5,1), color .2s; }
-#book-overlay.show #book-close { opacity: 1; transform: none; }
-#book-close:hover { color: var(--sky-2); }
-#book { position: relative; width: min(1160px, 94vw); height: min(720px, 86vh); perspective: 2600px; perspective-origin: 50% 40%; }
-#book-overlay.show #book { animation: bookIn 1.5s cubic-bezier(.3,.8,.3,1) both; }
-#book-overlay.closing #book { animation: bookOut .5s cubic-bezier(.5,0,.8,.3) both; }
-@keyframes bookIn { 0% { transform: translate(-25%, 70px) scale(.82) rotateX(18deg); opacity: 0; } 30% { transform: translate(-25%, 0) scale(1) rotateX(4deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
-#book-overlay.show .page-stack { animation: stackOpen .75s .95s cubic-bezier(.2,.8,.25,1) both; }
-@keyframes stackOpen { from { clip-path: inset(-30px -30px -120px 50%); } to { clip-path: inset(-30px -30px -120px -30px); } }
-@keyframes bookOut { to { transform: translateY(60px) scale(.86) rotateX(14deg); opacity: 0; } }
-
-.page-stack { position: absolute; top: 6px; bottom: -6px; left: 4px; right: -6px; border-radius: 16px; background: #e9dfc8;
-  box-shadow: 0 2px 0 #ded3ba, 0 4px 0 #d2c6ab, 0 6px 0 #c8bb9e, 0 50px 100px rgba(19,34,46,.35); }
-.page { position: absolute; top: 0; bottom: 0; width: 50%; box-sizing: border-box; color: var(--paper-ink); }
-.page.left { left: 0; border-radius: 16px 3px 3px 16px; padding: 30px 38px 22px; display: flex; flex-direction: column; align-items: center; overflow-y: auto;
-  background: linear-gradient(270deg, rgba(60,40,20,.16), rgba(60,40,20,0) 9%), linear-gradient(180deg, var(--paper), var(--paper-2));
-  transform-origin: right center; backface-visibility: hidden; -webkit-backface-visibility: hidden; opacity: 0; }
-.page.right { right: 0; border-radius: 3px 16px 16px 3px; padding: 30px 34px 24px; display: flex; flex-direction: column; overflow: hidden;
-  background: linear-gradient(90deg, rgba(60,40,20,.14), rgba(60,40,20,0) 7%), linear-gradient(180deg, var(--paper), var(--paper-2)); }
-/* the left page "lands" when the cover passes 90° — no reliance on backface rendering */
-#book-overlay.show .page.left { animation: leftLand .75s .95s cubic-bezier(.2,.8,.25,1) both; }
-@keyframes leftLand { from { transform: rotateY(88deg); opacity: 1; filter: brightness(.75); } to { transform: none; opacity: 1; filter: none; } }
-#book-overlay.closing .page.left { animation: leftLift .3s ease-in both; }
-@keyframes leftLift { from { opacity: 1; transform: none; } to { opacity: 1; transform: rotateY(88deg); } }
-
-.cover { position: absolute; top: 0; bottom: 0; right: 0; width: 50%; transform-origin: left center; border-radius: 3px 16px 16px 3px; z-index: 4;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden;
-  background: radial-gradient(120% 90% at 30% 20%, #127a93, #0a4b5e 60%, #073745);
-  box-shadow: inset 6px 0 14px rgba(0,0,0,.35), 0 30px 70px rgba(19,34,46,.35); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-#book-overlay.show .cover { animation: coverOpen 1.1s .35s cubic-bezier(.45,.05,.25,1) both; }
-@keyframes coverOpen {
-  0% { transform: rotateY(0deg); opacity: 1; }
-  54% { transform: rotateY(-88deg); opacity: 1; filter: brightness(.7); }
-  55% { transform: rotateY(-90deg); opacity: 0; }
-  100% { transform: rotateY(-90deg); opacity: 0; }
-}
-.cover-shine { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.28) 45%, transparent 60%);
-  transform: translateX(-120%); }
-#book-overlay.show .cover-shine { animation: shine 1s .05s ease-out both; }
-@keyframes shine { to { transform: translateX(120%); } }
-.cover-border { position: absolute; inset: 18px; border: 1.5px solid rgba(254,197,12,.65); border-radius: 8px;
-  box-shadow: inset 0 0 0 5px rgba(0,0,0,.12), inset 0 0 0 6px rgba(254,197,12,.3); pointer-events: none; }
-.cover-frame { width: 56%; padding: 8px; border-radius: 6px; background: linear-gradient(135deg, #ffe17a, #c9a227 50%, #ffd65a); box-shadow: 0 16px 40px rgba(0,0,0,.35); }
-.cover-frame img { display: block; width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 3px; }
-.cover-name { font: 700 30px/1.15 var(--serif); color: #ffd84d; margin-top: 22px; text-align: center; padding: 0 30px; text-shadow: 0 2px 10px rgba(0,0,0,.35); }
-.cover-years { font: 14px var(--sans); color: #cfe9f0; margin-top: 6px; letter-spacing: .24em; }
-
-/* two thin paper leaves riffle after the cover */
-.leaf { position: absolute; top: 4px; bottom: 4px; right: 4px; width: calc(50% - 4px); transform-origin: left center; border-radius: 2px 14px 14px 2px; z-index: 3;
-  background: linear-gradient(90deg, #efe5cf, #faf4e6 30%, #f3ead6); box-shadow: 0 0 12px rgba(60,40,20,.15); opacity: 0;
-  backface-visibility: hidden; -webkit-backface-visibility: hidden; pointer-events: none; }
-#book-overlay.show .leaf.l1 { animation: leaf .7s .75s cubic-bezier(.45,.05,.3,1) both; }
-#book-overlay.show .leaf.l2 { animation: leaf .7s .88s cubic-bezier(.45,.05,.3,1) both; }
-@keyframes leaf { 0% { opacity: 1; transform: rotateY(0); } 52% { opacity: 1; transform: rotateY(-88deg); } 53%, 100% { opacity: 0; transform: rotateY(-90deg); } }
-.flip-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, rgba(40,25,10,.35), rgba(40,25,10,0) 60%); opacity: 0; }
-#book-overlay.show .flip-shade { animation: shade 1.2s .35s ease-out both; }
-@keyframes shade { 0% { opacity: .9; } 100% { opacity: 0; } }
+  opacity: 0; transform: scale(.6); transition: opacity .25s .25s, transform .35s .25s cubic-bezier(.3,1.6,.5,1), color .2s; }
+#talk-overlay.show #talk-close { opacity: 1; transform: none; }
+#talk-close:hover { color: var(--sky-2); }
+#talk-card { position: relative; display: grid; grid-template-columns: minmax(0, 42fr) minmax(0, 58fr); width: min(1100px, 94vw); height: min(720px, 86vh);
+  border-radius: 20px; overflow: hidden; background: #fff; color: var(--paper-ink);
+  box-shadow: 0 0 0 1px rgba(19,34,46,.06), 0 40px 90px rgba(19,34,46,.3); }
+#talk-overlay.show #talk-card { animation: cardIn .45s cubic-bezier(.2,.9,.25,1) both; }
+#talk-overlay.closing #talk-card { animation: cardOut .35s ease-in both; }
+@keyframes cardIn { from { transform: translateY(24px) scale(.96); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cardOut { to { transform: translateY(24px) scale(.96); opacity: 0; } }
+.talk-side { padding: 30px 34px 22px; display: flex; flex-direction: column; align-items: center; overflow-y: auto; min-height: 0;
+  background: linear-gradient(180deg, #eef7fb, #e2f0f7); border-right: 1px solid rgba(19,34,46,.08); }
+.talk-main { padding: 26px 30px 22px; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 
 /* staggered content reveal */
 .stg { opacity: 0; transform: translateY(12px); }
-#book-overlay.show .stg { animation: rise .55s cubic-bezier(.2,.8,.25,1) both; }
-#book-overlay.show .page.right .stg:nth-of-type(1) { animation-delay: 1.15s; }
-#book-overlay.show #chat-log { animation-delay: 1.3s; }
-#book-overlay.show #status-bar { animation-delay: 1.4s; }
-#book-overlay.show .talk-controls { animation-delay: 1.5s; }
-#book-overlay.show #left-name { animation-delay: 1.55s; }
-#book-overlay.show .page.left .meta { animation-delay: 1.65s; }
-#book-overlay.show #left-bio { animation-delay: 1.75s; }
-#book-overlay.show .credit-small { animation-delay: 1.85s; }
-#book-overlay.show .talk-head { animation-delay: 1.15s; }
+#talk-overlay.show .stg { animation: rise .45s cubic-bezier(.2,.8,.25,1) both; }
+#talk-overlay.show .talk-head { animation-delay: .12s; }
+#talk-overlay.show #chat-log { animation-delay: .18s; }
+#talk-overlay.show #status-bar { animation-delay: .24s; }
+#talk-overlay.show .talk-controls { animation-delay: .3s; }
+#talk-overlay.show #left-name { animation-delay: .2s; }
+#talk-overlay.show .talk-side .meta { animation-delay: .26s; }
+#talk-overlay.show #left-bio { animation-delay: .32s; }
+#talk-overlay.show .credit-small { animation-delay: .38s; }
 
 /* hologram avatar materialises */
 .holo { position: relative; width: 46%; max-width: 240px; flex: none; margin-top: 6px; }
-#book-overlay.show .holo { animation: holoIn 1s 1.35s cubic-bezier(.2,.8,.25,1) both, hover 5s 2.4s ease-in-out infinite; }
+#talk-overlay.show .holo { animation: holoIn .8s .1s cubic-bezier(.2,.8,.25,1) both, hover 5s 1.2s ease-in-out infinite; }
 @keyframes holoIn { 0% { opacity: 0; clip-path: inset(100% 0 0 0); filter: brightness(2.2) saturate(0) hue-rotate(160deg); }
   45% { opacity: 1; } 70% { filter: brightness(1.4) saturate(.6); } 100% { opacity: 1; clip-path: inset(0 0 0 0); filter: none; } }
 @keyframes hover { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
@@ -203,16 +158,13 @@ body.reading .ui, body.reading #labels { opacity: 0; pointer-events: none; }
 .speaking .ring.r1 { animation: pulse 1.4s ease-out infinite; }
 .speaking .ring.r2 { animation: pulse 1.4s ease-out .7s infinite; }
 @keyframes pulse { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.12); } }
-.orn { position: absolute; width: 58px; height: 58px; background: var(--orn) no-repeat center / contain; opacity: .6; pointer-events: none; }
-.orn.tl { top: 12px; left: 12px; } .orn.br { bottom: 12px; right: 12px; transform: rotate(180deg); }
 #left-name { font: 700 30px/1.15 var(--serif); margin: 36px 0 6px; text-align: center; }
 .meta { font: 12.5px var(--sans); color: #7d6446; text-align: center; letter-spacing: .04em; }
 .meta .sep { margin: 0 8px; color: var(--gold); font-size: 9px; vertical-align: 2px; }
 #left-bio { font: 16.5px/1.62 var(--serif); margin: 18px 0 10px; text-align: justify; hyphens: auto; }
-#left-bio::first-letter { float: left; font: 700 52px/0.9 var(--serif); color: var(--sky-2); padding: 4px 8px 0 0; }
 .credit-small { margin-top: auto; font: 10.5px var(--sans); color: #9b8768; padding-top: 8px; }
 
-.talk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 30px 14px 46px; border-bottom: 1px solid rgba(42,32,23,.12); }
+.talk-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 4px 56px 14px 0; border-bottom: 1px solid rgba(42,32,23,.12); }
 .talk-kicker { font: 700 10.5px var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--sky-2); }
 .talk-name { font: 700 21px/1.2 var(--serif); margin-top: 4px; }
 .lang { display: inline-flex; border: 1px solid rgba(42,32,23,.2); border-radius: 999px; overflow: hidden; flex: none; }
@@ -221,7 +173,7 @@ body.reading .ui, body.reading #labels { opacity: 0; pointer-events: none; }
 #chat-log { flex: 1; overflow-y: auto; padding: 18px 4px 10px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: thin; scrollbar-color: rgba(42,32,23,.2) transparent; }
 .msg { max-width: 86%; font: 16.5px/1.55 var(--serif); padding: 11px 15px; border-radius: 16px; animation: rise .35s ease-out; position: relative; }
 @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-.msg.a { align-self: flex-start; background: #fff; border: 1px solid rgba(201,162,39,.35); border-bottom-left-radius: 5px; box-shadow: 0 3px 12px rgba(60,40,20,.06); }
+.msg.a { align-self: flex-start; background: #f4f9fc; border: 1px solid rgba(0,167,196,.22); border-bottom-left-radius: 5px; box-shadow: 0 3px 12px rgba(60,40,20,.06); }
 .msg.u { align-self: flex-end; background: var(--sky-2); color: #fff; border-bottom-right-radius: 5px; font: 15px/1.5 var(--sans); }
 .typing span { display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%; background: var(--gold); animation: blink 1.2s infinite; }
 .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
@@ -261,12 +213,11 @@ body.reading .ui, body.reading #labels { opacity: 0; pointer-events: none; }
   .top-actions { width: 100%; }
   #list-toggle span { display: none; }
   #panel { top: 66px; }
-  #book { width: 95vw; height: 90vh; perspective: none; }
-  .cover, .page-stack, .leaf, .page.left { display: none; }
-  .page.right { left: 0; width: 100%; border-radius: 16px; padding: 18px 16px; }
-  #book-overlay.show .stg { animation-delay: .25s !important; }
-  .talk-head { padding: 0 0 12px; }
-  .orn { display: none; }
+  #talk-card { width: 95vw; height: 90vh; grid-template-columns: minmax(0, 1fr); border-radius: 16px; }
+  .talk-side { display: none; }
+  .talk-main { padding: 18px 16px; }
+  #talk-overlay.show .stg { animation-delay: .1s !important; }
+  .talk-head { padding: 0 48px 12px 0; }
   .mobile-head { display: flex; }
   #splash h1 { font-size: 32px; }
 }
