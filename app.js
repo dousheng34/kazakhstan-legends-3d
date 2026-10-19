@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from './OrbitControls.js';
 import { AgentSession } from './voice-session.js';
-import { initSelect } from './select.js';
 import { resolveQuality, dprCap, stepDpr, shouldRenderWhileHidden, labelOpacityCss } from './render-quality.js';
 
 /* =========================================================
@@ -269,15 +268,13 @@ async function buildKazakhstan() {
    People on the map: plain photo cards (no books)
    ========================================================= */
 const pins = [];
-let PERSONS = [];
 
 // Contemporary people (1950–2026) are read from modern.json and placed on the map by `geo`.
 // They are AI-guide personas: third person, never "I am <real person>".
 let MODERN = [];
 const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // library voices already used here — NOT clones of real people
-// The 23 historical figures are shown by default again; they can still be hidden from the select screen.
-const HIST_ON = (() => { try { return localStorage.getItem('kz_hist') !== '0'; } catch (e) { return true; } })();
-const allPeople = () => MODERN.concat(HIST_ON ? PERSONS : []);
+// Only contemporaries (1950–2026) are shown; the old historical figures (persons.json) are no longer loaded.
+const allPeople = () => MODERN;
 function latLonToPx(lat, lon) {                                   // inverse of pxLat/pxLon (web-mercator tile grid used by the map)
   const n = 2 ** META.z, x = (lon + 180) / 360 * n, y = (1 - Math.log(Math.tan(lat * DEG) + 1 / Math.cos(lat * DEG)) / Math.PI) / 2 * n;
   return [x * 256 - META.gx0, y * 256 - META.gy0];
@@ -346,7 +343,6 @@ function softRectTexture(color, blur) {
 
 
 async function buildPins() {
-  PERSONS = await getJSON('persons.json');
   await loadModern();
   const people = allPeople().filter((p) => Number.isFinite(p.px) && Number.isFinite(p.py));
   try { await Promise.all([document.fonts.load('700 40px "PT Serif"'), document.fonts.load('400 22px "PT Sans"')]); } catch (e) {}
@@ -610,13 +606,6 @@ function pickPerson(p) {
   if (b) { focusPin(b); return; }
   tip.style.opacity = 0; hovered = null; closePanel(); openTalk(p);
 }
-let selecting = false;
-const selectUI = initSelect({
-  getPeople: allPeople, imgOf, hiOf, getUiLang: () => lang, onPick: pickPerson, historyOn: HIST_ON,
-  onToggleHistory: () => { try { localStorage.setItem('kz_hist', HIST_ON ? '0' : '1'); } catch (e) {} location.reload(); },
-  onOpen: () => { selecting = true; closePanel(); }, onClose: () => { selecting = false; dirty = true; },
-});
-$('select-btn').addEventListener('click', () => selectUI.open());
 
 /* =========================================================
    Person card + ElevenLabs live conversation
@@ -988,7 +977,7 @@ document.addEventListener('visibilitychange', () => {
 function animate() {
   if (!shouldRenderWhileHidden(pageHidden || document.hidden)) return;
   const dt = clock.getDelta();
-  if ((talkOpen || selecting) && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
+  if (talkOpen && !flight) { frames = acc = slow = fast = 0; measuringFrames = false; if (!frozen || dirty) { renderer.render(scene, camera); frozen = true; dirty = false; } return; }
   if (frozen) { frozen = false; dirty = true; }
   let active = false;
   if (flight) {
