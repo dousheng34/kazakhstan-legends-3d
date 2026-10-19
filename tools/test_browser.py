@@ -40,7 +40,7 @@ async def main():
       assert dims['width']*dims['height']<=3840*2160+5000,dims
       assert not dims['overflow'],dims
       await page.locator('#enter-btn').click(); await page.wait_for_timeout(4800)
-      await page.locator('#select-btn').click(); await page.wait_for_selector('#select-screen.show'); await page.locator('.sel-go').click()
+      await page.locator('#list-toggle').click(); await page.locator('#list .item').first.click()
       await page.wait_for_function("document.getElementById('talk-overlay').classList.contains('show')")
       await page.wait_for_timeout(1200)
       await page.screenshot(path=f'{tempfile.gettempdir()}/kz-{name}.png')
