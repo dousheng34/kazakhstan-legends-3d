@@ -9,9 +9,9 @@ assert.equal(parseSavedQuality(null), null);
 assert.equal(parseSavedQuality(''), null);
 
 assert.equal(defaultQuality({ isMobile: true, weakGpu: false, maxTex: 16384, cores: 16 }), 'medium');
-assert.equal(defaultQuality({ isMobile: false, weakGpu: true, maxTex: 16384, cores: 16 }), 'medium');
+assert.equal(defaultQuality({ isMobile: false, weakGpu: true, maxTex: 16384, cores: 16 }), 'high');
 assert.equal(defaultQuality({ isMobile: false, weakGpu: false, maxTex: 4096, cores: 16 }), 'medium');
-assert.equal(defaultQuality({ isMobile: false, weakGpu: false, maxTex: 16384, cores: 4 }), 'medium');
+assert.equal(defaultQuality({ isMobile: false, weakGpu: false, maxTex: 16384, cores: 4 }), 'high');
 assert.equal(defaultQuality({ isMobile: false, weakGpu: false, maxTex: 16384, cores: 8 }), 'high');
 
 assert.equal(resolveQuality('garbage', { isMobile: false, weakGpu: false, maxTex: 16384, cores: 8 }), 'high');

@@ -15,7 +15,8 @@ export function parseSavedQuality(raw) {
 export function defaultQuality({ isMobile, weakGpu, maxTex, cores } = {}) {
   const tex = maxTex == null ? 4096 : maxTex;
   const n = cores == null ? 8 : cores;
-  if (isMobile || weakGpu || tex < 8192 || n <= 4) return QUALITY_MEDIUM;
+  // Desktops default to HD: adaptive resolution (stepDpr) keeps the frame rate smooth on weaker GPUs too.
+  if (isMobile || tex < 8192) return QUALITY_MEDIUM;
   return QUALITY_HIGH;
 }
 
