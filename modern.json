@@ -88,8 +88,8 @@
       73.088
     ],
     "geo_note": "Қарағанды (туған қаласы)",
-    "voice": "DhwIuljOm695yhWY4OpF",
-    "speed": 1.0
+    "voice": "gMIlPNegT3C1SdNBp6rW",
+    "speed": 0.98
   },
   {
     "id": "rybakina",
@@ -134,8 +134,8 @@
       76.967
     ],
     "geo_note": "Павлодар (символдық)",
-    "voice": "t6lBrEl93uCiLR1Lgm8v",
-    "speed": 1.02
+    "voice": "CH4syTkdz0MNPn6zayBd",
+    "speed": 1.05
   },
   {
     "id": "denis_ten",
@@ -226,7 +226,7 @@
       82.628
     ],
     "geo_note": "Өскемен (Шығыс Қазақстан, туған өңірі)",
-    "voice": "L9IT3CnBaFSG99pi86dr",
+    "voice": "QpQ3ApUOdmaUcNblVLGC",
     "speed": 0.94
   },
   {
@@ -364,8 +364,8 @@
       51.924
     ],
     "geo_note": "Атырау (символдық)",
-    "voice": "Jbte7ht1CqapnZvc4KpK",
-    "speed": 1.02
+    "voice": "CH4syTkdz0MNPn6zayBd",
+    "speed": 1.03
   },
   {
     "id": "abdumalik",
@@ -456,7 +456,7 @@
       71.449
     ],
     "geo_note": "Астана",
-    "voice": "inSavBKUniNDYIfIcSyG",
+    "voice": "QpQ3ApUOdmaUcNblVLGC",
     "speed": 1.0
   },
   {
@@ -502,7 +502,7 @@
       71.378
     ],
     "geo_note": "Тараз (туған қаласы)",
-    "voice": "ETBmMkYUh8i2exSl2h3P",
+    "voice": "QpQ3ApUOdmaUcNblVLGC",
     "speed": 1.04
   },
   {
@@ -594,7 +594,7 @@
       77.063
     ],
     "geo_note": "Қонаев (Алматы облысы, символдық)",
-    "voice": "tj9wwIq7s2HekkDfg1KH",
+    "voice": "QpQ3ApUOdmaUcNblVLGC",
     "speed": 1.0
   },
   {
@@ -640,7 +640,7 @@
       51.371
     ],
     "geo_note": "Орал (символдық)",
-    "voice": "IExsTwnJMk9vWMW4SzsN",
+    "voice": "CH4syTkdz0MNPn6zayBd",
     "speed": 1.0
   },
   {
@@ -723,7 +723,7 @@
       63.625
     ],
     "geo_note": "Қостанай (туған қаласы)",
-    "voice": "pTNfhcjNOnJJhOy9Jca3",
+    "voice": "Vp3gaOLjssOTvqcooFwg",
     "speed": 1.0,
     "mouth": {
       "x": 0.494,
@@ -769,7 +769,7 @@
       69.135
     ],
     "geo_note": "Петропавл (туған қаласы)",
-    "voice": "jF2jkOwefhvnRzZHn0sl",
+    "voice": "CH4syTkdz0MNPn6zayBd",
     "speed": 0.95,
     "mouth": {
       "x": 0.4797,
@@ -815,7 +815,7 @@
       68.251
     ],
     "geo_note": "Түркістан (туған қаласы)",
-    "voice": "GquPFn9xormgmHaJ2KdN",
+    "voice": "9NqTZSpHJZHucyduMacF",
     "speed": 1.02,
     "mouth": {
       "x": 0.552,
