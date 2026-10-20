@@ -41,7 +41,7 @@
       </label>
       <button id="list-toggle" class="chip" aria-label="Тұлғалар тізімі">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        <span>Тұлғалар</span><b id="count">15</b>
+        <span>Тұлғалар</span><b id="count">30</b>
       </button>
       <button id="globe-btn" class="chip icon" title="Жер шары" aria-label="Жер шары">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18"/></svg>
@@ -57,7 +57,8 @@
   </header>
 
   <aside id="panel" class="ui" aria-hidden="true">
-    <div class="panel-title">Тұлғалар <span>өңір бойынша</span></div>
+    <div class="panel-title">ТОП-30 тұлға <span>туған өңірі бойынша</span></div>
+    <div id="cats" role="group" aria-label="Санаттар"></div>
     <div id="list"></div>
   </aside>
 
@@ -69,6 +70,8 @@
     <button data-nav="right" title="Оңға бұру">⟳</button>
     <button data-nav="tilt" title="Еңкейту">◩</button>
     <button data-nav="north" title="Солтүстікке бұру"><b>С</b></button>
+    <span class="sep"></span>
+    <button id="random-btn" title="Кездейсоқ тұлға" aria-label="Кездейсоқ тұлға">🎲</button>
   </div>
 
   <div id="hint" class="ui"><span><i>⇔</i> Тартып жылжыту</span><span><i>⊕</i> Дөңгелекпен немесе +/− жақындату</span><span><i>☝</i> Суретті басыңыз</span></div>
