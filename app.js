@@ -17,7 +17,7 @@ let savedQ = null; try { savedQ = localStorage.getItem('kz_quality'); } catch (e
 const QUALITY = resolveQuality(savedQ, { isMobile, weakGpu: WEAK_GPU, maxTex, cores: navigator.hardwareConcurrency || 8 });
 const LOW = QUALITY !== 'high';
 const dprWanted = () => Math.max(window.devicePixelRatio || 1, QUALITY === 'high' ? 2 : 1);   // HD renders a 3840×2160-class buffer even on 1080p screens
-let DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+let DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex, mediumMax: isMobile ? 1.75 : 1 });
 probe?.getExtension('WEBGL_lose_context')?.loseContext();
 
 const R = 420;                         // globe radius (scene units)
@@ -26,7 +26,8 @@ const VS = (R / 6371000) * EXAG;       // scene units per metre of elevation
 const BASE = 2.6;                      // how far Kazakhstan is raised above the globe
 const H_MIN = -150;
 const KZ_LAT = 48.0, KZ_LON = 67.0;
-const CARD_W = 4.6, CARD_H = 6.1;                // photo cards lying on the map (scene units)
+const CARD_K = (isMobile || Math.min(innerWidth, innerHeight) < 600) ? 1.7 : 1;   // bigger photo cards on phones so faces are visible
+const CARD_W = 4.6 * CARD_K, CARD_H = 6.1 * CARD_K;                // photo cards lying on the map (scene units)
 const DEG = Math.PI / 180;
 const $ = (id) => document.getElementById(id);
 document.body.classList.add('booting');
@@ -448,7 +449,9 @@ function updateLabels() {
 let mode = 'map';
 function mapView() {
   const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const d = Math.max(112 / (t * camera.aspect), 72 / t) * 1.06;
+  // portrait phones: fitting the whole country width makes it tiny, so frame the central part (users pan for the edges)
+  const portrait = camera.aspect < 0.8, wFit = portrait ? 112 * 0.66 : 112;
+  const d = Math.max(wFit / (t * camera.aspect), 72 / t) * (portrait ? 1.0 : 1.06);
   const target = new THREE.Vector3(0, 0, 6);
   return { pos: new THREE.Vector3(0, 0.8, 0.6).normalize().multiplyScalar(d).add(target), target, mode: 'map' };
 }
@@ -1000,7 +1003,7 @@ function animate() {
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex });
+  DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex, mediumMax: isMobile ? 1.75 : 1 });
   dprCeil = Math.min(dprCeil, DPR_MAX);
   dpr = Math.min(dpr, DPR_MAX); frames = acc = slow = fast = 0; measuringFrames = false;
   renderer.setPixelRatio(dpr);
