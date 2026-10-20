@@ -17,7 +17,7 @@ let savedQ = null; try { savedQ = localStorage.getItem('kz_quality'); } catch (e
 const QUALITY = resolveQuality(savedQ, { isMobile, weakGpu: WEAK_GPU, maxTex, cores: navigator.hardwareConcurrency || 8 });
 const LOW = QUALITY !== 'high';
 const dprWanted = () => Math.max(window.devicePixelRatio || 1, QUALITY === 'high' ? 2 : 1);   // HD renders a 3840×2160-class buffer even on 1080p screens
-let DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex, mediumMax: isMobile ? 1.75 : 1 });
+let DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex, mediumMax: isMobile ? 1.5 : 1 });
 probe?.getExtension('WEBGL_lose_context')?.loseContext();
 
 const R = 420;                         // globe radius (scene units)
@@ -36,7 +36,7 @@ document.body.classList.add('booting');
    Renderer
    ========================================================= */
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', stencil: false });
-let dpr = Math.min(DPR_MAX, Math.max(1, window.devicePixelRatio || 1)), dprCeil = DPR_MAX;   // start at native, climb to 4K only while FPS stays high
+let dpr = Math.min(DPR_MAX, isMobile ? 1.25 : Math.max(1, window.devicePixelRatio || 1)), dprCeil = DPR_MAX;   // phones start light and climb only if smooth   // start at native, climb to 4K only while FPS stays high
 renderer.setPixelRatio(dpr);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x000000, 0);
@@ -910,6 +910,7 @@ const avatar = (() => {
     if (fake > now) { const syl = Math.abs(Math.sin(now / 80) * Math.sin(now / 210 + 0.7)); target = Math.max(target, 0.25 + 0.6 * syl); }
     const idle = talk <= 0 && fake <= now && open < 0.01 && target < 0.01;
     if (idle && lastDraw && now - lastDraw < 200) return;
+    if (isMobile && lastDraw && now - lastDraw < 32) return;             // phones: 30 fps is plenty for the mouth, frees the GPU
     open += (target - open) * 0.35;
     gl.viewport(0, 0, cv.width, cv.height);
     gl.uniform1f(uT, now / 1000); gl.uniform1f(uOp, open);
@@ -1036,13 +1037,13 @@ function animate() {
   dirty = false;
   updateLabels();
   renderer.render(scene, camera);
-  if (measuringFrames) adapt(dt);
-  measuringFrames = true;
+  if (measuringFrames && !flight) adapt(dt);
+  measuringFrames = !flight;
 }
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex, mediumMax: isMobile ? 1.75 : 1 });
+  DPR_MAX = dprCap(dprWanted(), QUALITY, { width: innerWidth, height: innerHeight, maxDimension: maxTex, mediumMax: isMobile ? 1.5 : 1 });
   dprCeil = Math.min(dprCeil, DPR_MAX);
   dpr = Math.min(dpr, DPR_MAX); frames = acc = slow = fast = 0; measuringFrames = false;
   renderer.setPixelRatio(dpr);

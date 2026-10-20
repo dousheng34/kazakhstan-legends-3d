@@ -271,3 +271,19 @@ body.reveal #stage { animation: stageIn 2.4s cubic-bezier(.2,.8,.25,1) both; }
 #gk-btn { margin-left: auto; flex: none; border: 1px solid rgba(42,32,23,.18); background: transparent; color: #8a7556; border-radius: 999px; padding: 3px 10px; font: 700 11px var(--sans); cursor: pointer; }
 #gk-btn.on { border-color: rgba(26,115,232,.35); color: #1a73e8; background: rgba(26,115,232,.06); }
 #gk-btn:hover { color: var(--sky-2); }
+
+/* ---- Phones / touch devices: keep animations smooth ----
+   backdrop-filter over a live WebGL canvas is re-blurred on EVERY frame on mobile GPUs, and full-screen
+   filter: blur() during the reveal costs the same; both made the map and the avatar stutter. */
+@media (pointer: coarse), (max-width: 760px) {
+  #topbar .chip, .search-wrap, #brand, #panel, #nav, #hint, .intro-ui button, #talk-overlay, .lang, #gk-btn {
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+  #topbar .chip, .search-wrap, #brand, #nav { background: rgba(255,255,255,.94); }
+  #panel { background: rgba(255,255,255,.98); }
+  #talk-overlay { background: rgba(214,232,242,.94); }
+  @keyframes stageIn { from { transform: scale(1.12); opacity: .6; } to { transform: none; opacity: 1; } }
+  @keyframes introZoom { to { transform: scale(2.4); opacity: .4; } }
+  .holo-scan { animation: none; mix-blend-mode: normal; opacity: .12; }
+  .holo-beam { filter: none; }
+  .holo canvas, .speaking canvas { transition: none; }
+}
