@@ -275,8 +275,16 @@ const pins = [];
 // Every person speaks in the first person from their own life experience (AI voice simulation on public facts; the voice is a library voice, not a clone).
 let MODERN = [];
 const GUIDE_VOICE = { male: 'Vp3gaOLjssOTvqcooFwg', female: 'QpQ3ApUOdmaUcNblVLGC' };   // fallback library voices (NOT clones of real people)
-// Only contemporaries (1950–2026) are shown; the old historical figures (persons.json) are no longer loaded.
+// The map shows the TOP-30 list from modern.json (history, culture, sport & space); persons.json is legacy data.
 const allPeople = () => MODERN;
+// TOP-30: three groups, each with its own frame colour on the map and a filter chip in the list
+const CATS = {
+  history: { kk: 'Тарих · ғылым · әдебиет', ru: 'История · наука · литература', short: 'Тарих', icon: '📜', color: '#c9a227' },
+  culture: { kk: 'Өнер · мәдениет', ru: 'Искусство · культура', short: 'Өнер', icon: '🎼', color: '#1597b0' },
+  sport:   { kk: 'Спорт · ғарыш', ru: 'Спорт · космос', short: 'Спорт', icon: '🏅', color: '#d1495b' },
+};
+const catOf = (p) => CATS[p.category] || CATS[{ music: 'culture' }[p.category]] || CATS.culture;
+let catFilter = 'all';
 function latLonToPx(lat, lon) {                                   // inverse of pxLat/pxLon (web-mercator tile grid used by the map)
   const n = 2 ** META.z, x = (lon + 180) / 360 * n, y = (1 - Math.log(Math.tan(lat * DEG) + 1 / Math.cos(lat * DEG)) / Math.PI) / 2 * n;
   return [x * 256 - META.gx0, y * 256 - META.gy0];
@@ -331,7 +339,12 @@ function photoTexture(p, img) {
   g.font = '400 22px "PT Sans", system-ui, sans-serif'; g.fillStyle = '#ffe08a';
   g.fillText(p.years || '', W / 2, H - B - 18);
   g.restore();
-  rrect(g, 3, 3, W - 6, H - 6, 20); g.strokeStyle = '#c9a227'; g.lineWidth = 4; g.stroke();
+  const cat = catOf(p);
+  rrect(g, 3, 3, W - 6, H - 6, 20); g.strokeStyle = cat.color; g.lineWidth = 7; g.stroke();
+  // category badge in the top-left corner
+  g.beginPath(); g.arc(B + 34, B + 34, 26, 0, Math.PI * 2); g.fillStyle = cat.color; g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 6 * K; g.fill();
+  g.shadowBlur = 0; g.font = '28px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(cat.icon, B + 34, B + 36);
   return canvasTex(c);
 }
 function softRectTexture(color, blur) {
@@ -509,7 +522,7 @@ function pick(ev) {
   const r = renderer.domElement.getBoundingClientRect();
   mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(mouse, camera);
-  const hit = ray.intersectObjects(pins.map((b) => b.photo), false)[0];
+  const hit = ray.intersectObjects(pins.filter((b) => b.base.visible).map((b) => b.photo), false)[0];
   return hit ? pins[hit.object.userData.index] : null;
 }
 renderer.domElement.addEventListener('pointermove', (ev) => {
@@ -588,14 +601,15 @@ function closePanel() { panel.classList.remove('open'); }
 $('list-toggle').addEventListener('click', () => panel.classList.toggle('open'));
 function renderList(filter = '') {
   const f = filter.trim().toLowerCase(), groups = {};
-  allPeople().forEach((p) => { if (f && !(p.name + ' ' + p.name_ru + ' ' + (p.region || '')).toLowerCase().includes(f)) return; const g = (p.region || '—').split(',')[0].trim(); (groups[g] = groups[g] || []).push(p); });
+  allPeople().forEach((p) => { if (catFilter !== 'all' && catOf(p) !== CATS[catFilter]) return; if (f && !(p.name + ' ' + p.name_ru + ' ' + (p.region || '') + ' ' + (p.field_kk || '') + ' ' + (p.field_ru || '')).toLowerCase().includes(f)) return; const g = (p.region || '—').split(',')[0].trim(); (groups[g] = groups[g] || []).push(p); });
   const list = $('list'); list.innerHTML = '';
   Object.keys(groups).sort((a, b) => a.localeCompare(b, 'kk')).forEach((g) => {
     const h = document.createElement('div'); h.className = 'grp'; h.textContent = g; list.appendChild(h);
     groups[g].forEach((p) => {
       const b = document.createElement('button'); b.className = 'item';
       b.innerHTML = '<img alt="" loading="lazy"><div><div class="n"></div><div class="y"></div></div>';
-      b.querySelector('img').src = imgOf(p); b.querySelector('.n').textContent = p.name; b.querySelector('.y').textContent = `${p.years} · ${p.region}`;
+      b.querySelector('img').src = imgOf(p); b.querySelector('img').style.borderColor = catOf(p).color;
+      b.querySelector('.n').textContent = p.name; b.querySelector('.y').textContent = `${catOf(p).icon} ${p.field_kk || ''} · ${p.years}`;
       b.addEventListener('click', () => pickPerson(p));
       list.appendChild(b);
     });
@@ -603,6 +617,31 @@ function renderList(filter = '') {
   if (!list.children.length) list.innerHTML = '<div class="grp" style="text-transform:none;letter-spacing:0">Ештеңе табылмады</div>';
 }
 $('search').addEventListener('input', (e) => { renderList(e.target.value); panel.classList.add('open'); });
+// category chips: filter the list AND show only that group's photos on the map
+function renderCats() {
+  const box = $('cats'); if (!box) return; box.innerHTML = '';
+  const all = allPeople(), mk = (key, label, n, color) => {
+    const b = document.createElement('button'); b.className = 'cat' + (catFilter === key ? ' on' : ''); b.type = 'button';
+    if (color) b.style.setProperty('--c', color);
+    b.innerHTML = `<span></span><b></b>`; b.querySelector('span').textContent = label; b.querySelector('b').textContent = n;
+    b.addEventListener('click', () => { catFilter = key; renderCats(); renderList($('search').value); applyCatFilter(); });
+    box.appendChild(b);
+  };
+  mk('all', 'Барлығы', all.length);
+  Object.entries(CATS).forEach(([k, c]) => mk(k, `${c.icon} ${c.short}`, all.filter((p) => catOf(p) === c).length, c.color));
+}
+function applyCatFilter() {
+  pins.forEach((b) => { b.base.visible = catFilter === 'all' || catOf(b.p) === CATS[catFilter]; });
+  dirty = true;
+}
+// 🎲 random person: fly to someone you have not met yet
+const metIds = new Set();
+function randomPerson() {
+  const pool = pins.filter((b) => b.base.visible); if (!pool.length) return;
+  let fresh = pool.filter((b) => !metIds.has(b.p.id)); if (!fresh.length) { metIds.clear(); fresh = pool; }
+  const b = fresh[Math.floor(Math.random() * fresh.length)]; metIds.add(b.p.id); closePanel(); focusPin(b);
+}
+$('random-btn') && $('random-btn').addEventListener('click', randomPerson);
 
 // Everyone with a place on the map: the camera flies to their photo first, then the conversation opens.
 function pickPerson(p) {
@@ -625,7 +664,7 @@ function addMsg(role, text) {
 const nameFor = (p) => (lang === 'ru' ? p.name_ru : p.name);
 function setStatus(t) { statusEl.textContent = t || ''; }
 
-const greetOf = (p) => (!p.modern && p.greet) ? p.greet : (lang === 'ru'
+const greetOf = (p) => (lang === 'ru' && p.greet_ru) ? p.greet_ru : (lang !== 'ru' && p.greet) ? p.greet : (lang === 'ru'
   ? `Здравствуйте! Я — ${p.name_ru}. Расскажу о своём пути и о том, что понял в жизни. Спрашивайте, о чём хотите.`
   : `Сәлеметсіз бе! Мен — ${p.name}. Өз өмірімнен түйген ойымды айтып беремін — сұрағыңыз болса, қоя беріңіз.`);
 
@@ -1056,7 +1095,7 @@ const intro = (() => {
   try {
     await buildKazakhstan();
     await Promise.all([buildGlobe(), buildPins(), buildCities()]);
-    await loadModern(); renderList(); $('count').textContent = allPeople().length;
+    await loadModern(); renderCats(); renderList(); $('count').textContent = allPeople().length;
     if (/[?&]debug\b/.test(location.search)) window.__kz = { pins, people: allPeople };
     const gv = globeView(4.6);
     camera.position.copy(gv.pos); controls.target.copy(gv.target); setMode('globe');
