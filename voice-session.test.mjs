@@ -7,7 +7,7 @@ import { AgentSession } from './voice-session.js';
 globalThis.requestAnimationFrame = () => 1;
 globalThis.cancelAnimationFrame = () => {};
 class Node {
-  constructor() { this.gain = { value: 1 }; this.port = { close() {} }; }
+  constructor() { this.gain = { value: 1 }; this.msgs = []; const msgs = this.msgs; this.port = { close() {}, postMessage(m) { msgs.push(m); } }; }
   connect() {} disconnect() { this.disconnected = true; }
   getByteTimeDomainData(a) { a.fill(128); }
   start(t) { this.startTime = t; } stop() { this.stopped = true; }
@@ -59,12 +59,30 @@ test('connection timeout cleans all allocated nodes', async () => {
   assert.ok(s.closed); assert.ok(s.ws.closed); assert.ok(s.out.disconnected);
 });
 test('interruption discards queued and late audio, keeps newer response', async () => {
-  const s = session(); const ws = await ready(s);
-  ws.message(audio(8)); assert.equal(s.sources.size, 1); const source = [...s.sources][0];
+  const s = session(); const ws = await ready(s); const port = s.player.msgs;
+  ws.message(audio(8)); assert.equal(port.filter(m => m.type === 'pcm').length, 1);
   ws.message({ type: 'interruption', interruption_event: { event_id: 8 } });
-  assert.ok(source.stopped); assert.equal(s.sources.size, 0);
-  ws.message(audio(8)); assert.equal(s.sources.size, 0);
-  ws.message(audio(9)); assert.equal(s.sources.size, 1); await s.endSession();
+  assert.equal(port.at(-1).type, 'clear');
+  ws.message(audio(8)); assert.equal(port.filter(m => m.type === 'pcm').length, 1);
+  ws.message(audio(9)); assert.equal(port.filter(m => m.type === 'pcm').length, 2); await s.endSession();
+});
+test('player worklet: continuous playback across chunks, jitter buffer, faded underrun', () => {
+  let Processor; const reports = [];
+  const sandbox = { sampleRate: 48000, AudioWorkletProcessor: class { constructor() { this.port = { postMessage: r => reports.push(r) }; } }, registerProcessor: (_, p) => { Processor = p; } };
+  vm.runInNewContext(readFileSync(new URL('./pcm-player-worklet.js', import.meta.url), 'utf8'), sandbox);
+  const p = new Processor({ processorOptions: { inRate: 16000, prebufferMs: 100, rebufferMs: 60, maxWaitMs: 200 } });
+  const chunk = (n, v) => { const a = new Int16Array(n).fill(v); return { data: { type: 'pcm', pcm: a.buffer } }; };
+  const run = (blocks) => { const all = []; for (let b = 0; b < blocks; b++) { const o = new Float32Array(128); p.process([], [[o]]); all.push(...o); } return all; };
+  p.port.onmessage(chunk(640, 16384));                 // 40 ms < 100 ms prebuffer: must wait
+  assert.ok(run(10).every(x => x === 0));
+  for (let k = 0; k < 4; k++) p.port.onmessage(chunk(640, 16384));   // now 200 ms queued -> plays
+  const out = run(100);
+  const steady = out.slice(1000, 5000); assert.ok(steady.every(x => Math.abs(x - 0.5) < 1e-3), 'no clicks between chunks');
+  let maxJump = 0; for (let i = 1; i < out.length; i++) maxJump = Math.max(maxJump, Math.abs(out[i] - out[i - 1]));
+  assert.ok(maxJump < 0.01, 'fade in/out, no hard edges: ' + maxJump);
+  assert.ok(Math.abs(out.at(-1)) < 1e-6, 'underrun fades to silence');
+  p.port.onmessage(chunk(640, 16384)); p.port.onmessage({ data: { type: 'clear' } });
+  assert.ok(run(10).slice(-128).every(x => Math.abs(x) < 1e-6)); assert.ok(reports.length > 0);
 });
 test('remote disconnect stops microphone and releases worklet graph', async () => {
   let stops = 0, disconnected = 0; const track = { stop() { stops++; } };

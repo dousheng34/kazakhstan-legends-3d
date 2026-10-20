@@ -5,7 +5,7 @@ const aborted = () => Object.assign(new Error('Session cancelled'), { name: 'Abo
 export class AgentSession {
   constructor(options) {
     this.o = options; this.sources = new Set(); this.playHead = 0;
-    this.outRate = 16000; this.inRate = 16000; this.micLevel = 0;
+    this.outRate = 16000; this.inRate = 16000; this.micLevel = 0; this.pstate = { playing: false, buffered: 0 }; this.lastAudioAt = 0; this.pending = [];
     this.closed = false; this.mode = 'listening'; this.interruptedId = -1; this.pendingAt = 0; this.pendingKind = '';
   }
   async start(withMic) {
@@ -16,6 +16,10 @@ export class AgentSession {
       this.out = this.ctx.createGain(); this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 512; this.out.connect(this.analyser); this.analyser.connect(this.ctx.destination);
       this.buf = new Uint8Array(this.analyser.fftSize);
+      // Load the audio-thread player before connecting, so the first audio chunk never waits for it.
+      try { await this.ctx.audioWorklet.addModule(new URL('./pcm-player-worklet.js', import.meta.url)); this.canStream = typeof AudioWorkletNode !== 'undefined'; }
+      catch { this.canStream = false; }
+      if (this.closed) throw aborted();
       if (withMic) {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone requires HTTPS and browser permission');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
@@ -42,6 +46,7 @@ export class AgentSession {
               if (!output || (withMic && !input)) throw new Error('Agent must use PCM audio');
               this.outRate = Number(output[1]); this.inRate = input ? Number(input[1]) : 16000;
               if (![this.inRate, this.outRate].every(rate => rate >= 8000 && rate <= 48000)) throw new Error('Unsupported PCM sample rate');
+              this.createPlayer();
               clearTimeout(this.connectTimer); this.cancelStart = null; resolve();
             }
             this.handle(event);
@@ -99,28 +104,52 @@ export class AgentSession {
       case 'error': this.fail(new Error('Voice service returned an error')); break;
     }
   }
-  play(base64) {
-    if (this.closed) return;
+  createPlayer() {
+    if (!this.canStream || this.player) return;
+    this.player = new AudioWorkletNode(this.ctx, 'kz-pcm-player', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1],
+      processorOptions: { inRate: this.outRate, prebufferMs: 160, rebufferMs: 100, maxWaitMs: 220 } });
+    this.player.port.onmessage = ({ data }) => { if (data) this.pstate = data; };
+    this.player.connect(this.out);
+  }
+  decode(base64) {
     const raw = atob(base64);
     if (raw.length % 2) throw new Error('Invalid PCM audio');
-    if (!raw.length) return;
-    const bytes = Uint8Array.from(raw, c => c.charCodeAt(0)); const view = new DataView(bytes.buffer);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return bytes;
+  }
+  play(base64) {
+    if (this.closed) return;
+    const bytes = this.decode(base64); if (!bytes.length) return;
+    this.lastAudioAt = performance.now();
+    if (this.player) {                                   // streaming path: one continuous queue on the audio thread
+      this.player.port.postMessage({ type: 'pcm', pcm: bytes.buffer }, [bytes.buffer]);
+      if ((this.pstate.buffered || 0) > 45) this.fail(new Error('Voice playback queue overflow'));
+      return;
+    }
+    // Fallback (no AudioWorklet): per-chunk buffers with a bigger jitter cushion.
+    const view = new DataView(bytes.buffer);
     const buffer = this.ctx.createBuffer(1, bytes.length / 2, this.outRate); const samples = buffer.getChannelData(0);
     for (let i = 0; i < samples.length; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
-    // Preserve contiguous streaming playback; only the first chunk gets a jitter cushion.
-    const start = Math.max(this.ctx.currentTime + 0.025, this.playHead);
+    const start = Math.max(this.ctx.currentTime + 0.12, this.playHead);
     if (start - this.ctx.currentTime + buffer.duration > 45 || this.sources.size >= 1024) { this.fail(new Error('Voice playback queue overflow')); return; }
     const source = this.ctx.createBufferSource(); source.buffer = buffer; source.connect(this.out);
     source.onended = () => { this.sources.delete(source); source.disconnect(); };
     this.sources.add(source); source.start(start); this.playHead = start + buffer.duration;
   }
   stopAudio() {
+    this.player?.port.postMessage({ type: 'clear' });
+    this.pstate = { playing: false, buffered: 0 }; this.lastAudioAt = 0;
     for (const source of this.sources) { source.onended = null; try { source.stop(); source.disconnect(); } catch {} }
     this.sources.clear(); this.playHead = 0;
   }
+  isSpeaking() {
+    if (this.player) return !!this.pstate.playing || (this.pstate.buffered || 0) > 0.005 || performance.now() - this.lastAudioAt < 250;
+    return this.playHead > this.ctx.currentTime + 0.01;
+  }
   tick() {
     if (this.closed) return;
-    const mode = this.playHead > this.ctx.currentTime + 0.01 ? 'speaking' : 'listening';
+    const mode = this.isSpeaking() ? 'speaking' : 'listening';
     if (mode !== this.mode) { this.mode = mode; this.o.onModeChange?.({ mode }); }
     this.raf = requestAnimationFrame(() => this.tick());
   }
@@ -143,7 +172,8 @@ export class AgentSession {
     this.closed = true; clearTimeout(this.connectTimer); cancelAnimationFrame(this.raf);
     this.cancelStart?.(aborted()); this.cancelStart = null; this.stopAudio();
     if (this.node) { this.node.port.onmessage = null; this.node.onprocessorerror = null; this.node.port.close(); }
-    for (const node of [this.node, this.micSrc, this.mute, this.out, this.analyser]) { try { node?.disconnect(); } catch {} }
+    if (this.player) { this.player.port.onmessage = null; try { this.player.port.close(); } catch {} }
+    for (const node of [this.player, this.node, this.micSrc, this.mute, this.out, this.analyser]) { try { node?.disconnect(); } catch {} }
     this.stream?.getTracks().forEach(t => { t.onended = null; t.stop(); }); this.micLevel = 0;
     if (this.ws) { this.ws.onopen = this.ws.onmessage = this.ws.onerror = this.ws.onclose = null; try { this.ws.close(); } catch {} }
   }
